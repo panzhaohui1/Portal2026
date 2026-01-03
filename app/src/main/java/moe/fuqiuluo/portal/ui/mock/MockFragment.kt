@@ -254,9 +254,17 @@ class MockFragment : Fragment() {
 
                         // 自动启用GNSS Mock以提供最强防检测效果
                         if (context.autoEnableGnssMock) {
-                            MockServiceHelper.putConfig(it, context)
-                            if (MockServiceHelper.startGnssMock(it)) {
-                                Log.d("MockFragment", "Auto-enabled GNSS Mock")
+                            try {
+                                MockServiceHelper.putConfig(it, context)
+                                if (MockServiceHelper.startGnssMock(it)) {
+                                    Log.d("MockFragment", "Auto-enabled GNSS Mock successfully")
+                                } else {
+                                    Log.w("MockFragment", "Failed to auto-enable GNSS Mock")
+                                    // GNSS Mock启动失败不影响基础定位模拟
+                                }
+                            } catch (e: Exception) {
+                                Log.e("MockFragment", "Exception when auto-enabling GNSS Mock", e)
+                                // 继续执行，不中断位置模拟
                             }
                         }
 
