@@ -209,7 +209,11 @@ object RemoteCommandHandler {
                 return true
             }
             "put_config" -> {
-                val enable = rely.getBoolean("enable", FakeLoc.enable)
+                // 只在明确传入enable参数时才修改启动状态，避免覆盖当前状态
+                if (rely.containsKey("enable")) {
+                    FakeLoc.enable = rely.getBoolean("enable")
+                }
+
                 val speed = rely.getDouble("speed", FakeLoc.speed)
                 val altitude = rely.getDouble("altitude", FakeLoc.altitude)
                 val accuracy = rely.getFloat("accuracy", FakeLoc.accuracy)
@@ -228,7 +232,6 @@ object RemoteCommandHandler {
                 val disableRequestGeofence = rely.getBoolean("disable_request_geofence", FakeLoc.disableRequestGeofence)
                 val disableGetFromLocation = rely.getBoolean("disable_get_from_location", FakeLoc.disableGetFromLocation)
 
-                FakeLoc.enable = enable
                 FakeLoc.speed = speed
                 FakeLoc.altitude = altitude
                 FakeLoc.accuracy = accuracy

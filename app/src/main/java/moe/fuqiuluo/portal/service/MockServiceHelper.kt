@@ -326,7 +326,8 @@ object MockServiceHelper {
 
         val rely = Bundle()
         rely.putString("command_id", "put_config")
-        rely.putBoolean("enable", FakeLoc.enable)
+        // 不发送 enable 参数，避免覆盖服务端的启动状态
+        // rely.putBoolean("enable", FakeLoc.enable)
         rely.putDouble("altitude", FakeLoc.altitude)
         rely.putDouble("speed", FakeLoc.speed)
         rely.putBoolean("enable_debug_log", FakeLoc.enableDebugLog)
