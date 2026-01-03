@@ -2,6 +2,7 @@ package moe.fuqiuluo.portal.ui.mock
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -27,6 +28,7 @@ import moe.fuqiuluo.portal.android.widget.RockerView
 import moe.fuqiuluo.portal.android.window.OverlayUtils
 import moe.fuqiuluo.portal.databinding.FragmentMockBinding
 import moe.fuqiuluo.portal.ext.altitude
+import moe.fuqiuluo.portal.ext.autoEnableGnssMock
 import moe.fuqiuluo.portal.ext.drawOverOtherAppsEnabled
 import moe.fuqiuluo.portal.ext.historicalLocations
 import moe.fuqiuluo.portal.ext.hookSensor
@@ -250,6 +252,14 @@ class MockFragment : Fragment() {
                             return@withContext
                         }
 
+                        // 自动启用GNSS Mock以提供最强防检测效果
+                        if (context.autoEnableGnssMock) {
+                            MockServiceHelper.putConfig(it, context)
+                            if (MockServiceHelper.startGnssMock(it)) {
+                                Log.d("MockFragment", "Auto-enabled GNSS Mock")
+                            }
+                        }
+
                         if (!MockServiceHelper.setLocation(it, selectedLocation.lat, selectedLocation.lon)) {
                             showToast("更新位置失败")
                             return@let
@@ -288,6 +298,13 @@ class MockFragment : Fragment() {
                     if (!MockServiceHelper.isMockStart(mockServiceViewModel.locationManager!!)) {
                         showToast("模拟服务未启动")
                         return@withContext false
+                    }
+
+                    // 如果启用了自动GNSS Mock，先停止GNSS Mock
+                    if (requireContext().autoEnableGnssMock &&
+                        MockServiceHelper.isGnssMockStart(mockServiceViewModel.locationManager!!)) {
+                        MockServiceHelper.stopGnssMock(mockServiceViewModel.locationManager!!)
+                        Log.d("MockFragment", "Auto-disabled GNSS Mock")
                     }
 
                     if (MockServiceHelper.tryCloseMock(mockServiceViewModel.locationManager!!)) {

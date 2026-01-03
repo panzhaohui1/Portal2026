@@ -227,4 +227,14 @@ var Context.loopBroadcastlocation: Boolean
         FakeLoc.loopBroadcastLocation = value
     }
 
+/**
+ * 是否在启动位置模拟时自动启用GNSS Mock
+ * 默认为true，以提供最强的防检测效果
+ */
+var Context.autoEnableGnssMock: Boolean
+    get() = sharedPrefs.getBoolean("autoEnableGnssMock", true)
+    set(value) = sharedPrefs.edit {
+        putBoolean("autoEnableGnssMock", value)
+    }
+
 

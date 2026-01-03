@@ -506,6 +506,40 @@
                     android:layout_gravity="center_vertical"
                     app:useMaterialThemeColors="true"/>
             </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/auto_enable_gnss_mock_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:padding="5dp"
+                android:orientation="horizontal">
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center_vertical">
+                    <com.google.android.material.textview.MaterialTextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="自动启用GNSS模拟"
+                        android:textColor="@color/portal_mini_title_color" />
+                    <com.google.android.material.textview.MaterialTextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="启动位置模拟时自动启用GNSS Mock 提供最强防检测效果"
+                        android:textSize="11sp" />
+                </LinearLayout>
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/auto_enable_gnss_mock_switch"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:checked="true"
+                    app:useMaterialThemeColors="true"/>
+            </LinearLayout>
         </LinearLayout>
 
     </ScrollView>

@@ -248,6 +248,16 @@ class SettingsFragment : Fragment() {
             requireContext().loopBroadcastlocation = isChecked
             showToast("重启模拟生效")
         }
+
+        binding.autoEnableGnssMockSwitch.isChecked = requireContext().autoEnableGnssMock
+        binding.autoEnableGnssMockSwitch.setOnCheckedChangeListener { _, isChecked ->
+            requireContext().autoEnableGnssMock = isChecked
+            if (isChecked) {
+                showToast("启动位置模拟时将自动启用GNSS Mock")
+            } else {
+                showToast("已关闭自动启用GNSS Mock")
+            }
+        }
         return root
     }
 
