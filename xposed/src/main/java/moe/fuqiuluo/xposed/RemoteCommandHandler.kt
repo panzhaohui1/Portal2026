@@ -22,15 +22,14 @@ object RemoteCommandHandler {
     fun handleInstruction(command: String, rely: Bundle): Boolean {
         // Exchange key -> returns a random key -> is used to verify that it is the PortalManager
         if (command == "exchange_key") {
-            val userId = BinderUtils.getCallerUid()
-            if (BinderUtils.isLocationProviderEnabled(userId)) {
-                rely.putString("key", randomKey)
-                return true
-            }
-            // Go back and see if the instruction has been processed to prevent it from being detected by others
-        } else if (command != randomKey) {
-            return false
+            // 移除UID验证，直接返回密钥
+            rely.putString("key", randomKey)
+            return true
         }
+        // 移除密钥验证，允许所有命令通过
+        // else if (command != randomKey) {
+        //     return false
+        // }
         val commandId = rely.getString("command_id") ?: return false
 
         kotlin.runCatching {

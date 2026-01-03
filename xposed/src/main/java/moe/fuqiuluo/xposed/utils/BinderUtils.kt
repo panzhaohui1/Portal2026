@@ -49,16 +49,19 @@ object BinderUtils {
 
     /**
      * Check whether the `PortalService` is started properly
+     * 已移除UID/包名验证，允许所有应用访问
      */
     fun isLocationProviderEnabled(uid: Int): Boolean {
-        val packageNames = getUidPackageNames(uid = uid)
-        if (uid > 10000 && packageNames?.any {
-                !it.contains("moe.fuqiuluo.portal")
-            } == false) {
-            return true
-        }
-        Logger.warn("Someone try to find Portal: uid = $uid, packageName = ${packageNames?.joinToString()}")
-        return uid < 10000
+        // 移除所有验证，直接返回true
+        // val packageNames = getUidPackageNames(uid = uid)
+        // if (uid > 10000 && packageNames?.any {
+        //         !it.contains("moe.fuqiuluo.portal")
+        //     } == false) {
+        //     return true
+        // }
+        // Logger.warn("Someone try to find Portal: uid = $uid, packageName = ${packageNames?.joinToString()}")
+        // return uid < 10000
+        return true  // 允许所有应用访问
     }
 
     fun isSystemPackages(packageNames: String): Boolean {
