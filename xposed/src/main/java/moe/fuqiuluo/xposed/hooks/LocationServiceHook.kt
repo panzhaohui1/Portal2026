@@ -32,6 +32,7 @@ import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.concurrent.thread
 import kotlin.random.Random
 import kotlin.uuid.ExperimentalUuidApi
 
@@ -165,7 +166,7 @@ internal object LocationServiceHook: BaseLocationHook() {
         } else {
             onService(cLocationManagerService)
         }
-        //startDaemon(classLoader)
+        startDaemon(classLoader)
     }
 
     fun onService(cILocationManager: Class<*>) {
@@ -857,34 +858,34 @@ internal object LocationServiceHook: BaseLocationHook() {
         }
     }
 
-//    private fun startDaemon(classLoader: ClassLoader) {
-//        //val cIRemoteCallback = XposedHelpers.findClass("android.os.IRemoteCallback", classLoader)
-//        thread(
-//            name = "LocationUpdater",
-//            isDaemon = true,
-//            start = true,
-//        ) {
-//            while (true) {
-//                kotlin.runCatching {
-//                    if (!FakeLoc.enable) {
-//                        Thread.sleep(3000)
-//                        return@runCatching
-//                    } else {
-//                        Thread.sleep(FakeLoc.updateInterval)
-//                    }
-//
-//                    if (!FakeLoc.enable) return@runCatching // Prevent the last loop from being executed
-//
-//                    if (FakeLoc.enableDebugLog)
-//                        Logger.debug("LocationUpdater: callOnLocationChanged: ${locationListeners.size}")
-//
-//                    callOnLocationChanged()
-//                }.onFailure {
-//                    Logger.error("LocationUpdater", it)
-//                }
-//            }
-//        }
-//    }
+    private fun startDaemon(classLoader: ClassLoader) {
+        //val cIRemoteCallback = XposedHelpers.findClass("android.os.IRemoteCallback", classLoader)
+        thread(
+            name = "LocationUpdater",
+            isDaemon = true,
+            start = true,
+        ) {
+            while (true) {
+                kotlin.runCatching {
+                    if (!FakeLoc.enable) {
+                        Thread.sleep(3000)
+                        return@runCatching
+                    } else {
+                        Thread.sleep(FakeLoc.updateInterval)
+                    }
+
+                    if (!FakeLoc.enable) return@runCatching // Prevent the last loop from being executed
+
+                    if (FakeLoc.enableDebugLog)
+                        Logger.debug("LocationUpdater: callOnLocationChanged: ${locationListeners.size}")
+
+                    callOnLocationChanged()
+                }.onFailure {
+                    Logger.error("LocationUpdater", it)
+                }
+            }
+        }
+    }
 
     private fun addLocationListenerInner(provider: String, listener: IInterface) {
         val mDeathRecipient = object: IBinder.DeathRecipient {

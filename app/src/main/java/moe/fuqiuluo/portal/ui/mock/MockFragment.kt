@@ -243,8 +243,12 @@ class MockFragment : Fragment() {
             try {
                 withContext(Dispatchers.IO) {
                     mockServiceViewModel.locationManager!!.let {
+                        // 先同步配置，确保 GNSS Mock 等功能能正确工作
+                        MockServiceHelper.putConfig(it, context)
+                        
                         if (MockServiceHelper.tryOpenMock(it, speed, altitude, accuracy)) {
                             updateMockButtonState(button, "停止模拟", R.drawable.rounded_play_disabled_24)
+                            showToast("模拟已启动（含GNSS）")
                         } else {
                             showToast("模拟服务启动失败")
                             return@withContext
@@ -256,7 +260,7 @@ class MockFragment : Fragment() {
                         }
 
                         if (MockServiceHelper.broadcastLocation(it)) {
-                            showToast("更新位置成功")
+                            // 位置更新成功，不需要额外提示
                         } else {
                             showToast("更新位置失败")
                         }

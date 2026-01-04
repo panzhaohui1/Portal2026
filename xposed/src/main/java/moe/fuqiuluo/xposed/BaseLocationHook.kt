@@ -29,7 +29,11 @@ abstract class BaseLocationHook: BaseDivineService() {
         if (!FakeLoc.enable)
             return originLocation
 
-        if (originLocation.latitude + originLocation.longitude == FakeLoc.latitude + FakeLoc.longitude) {
+        if (originLocation.extras?.getBoolean("portal.processed") == true) {
+            return originLocation
+        }
+
+        if (originLocation.latitude == FakeLoc.latitude && originLocation.longitude == FakeLoc.longitude) {
             // Already processed
             return originLocation
         }
@@ -64,7 +68,7 @@ abstract class BaseLocationHook: BaseDivineService() {
         }
         location.bearing = modBearing.toFloat()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            location.bearingAccuracyDegrees = modBearing.toFloat()
+            location.bearingAccuracyDegrees = 3.0f  // 方位角精度，单位：度
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (location.hasBearingAccuracy() && location.bearingAccuracyDegrees == 0.0f) {
@@ -93,6 +97,7 @@ abstract class BaseLocationHook: BaseDivineService() {
         location.extras?.putInt("satellites", Random.nextInt(8, 45))
         location.extras?.putInt("maxCn0", Random.nextInt(30, 50))
         location.extras?.putInt("meanCn0", Random.nextInt(20, 30))
+        location.extras?.putBoolean("portal.processed", true)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             if (originLocation.hasMslAltitude()) {
@@ -153,13 +158,15 @@ abstract class BaseLocationHook: BaseDivineService() {
                     value.latitudeHemisphere = latitudeHemisphere
                     value.longitudeHemisphere = longitudeHemisphere
 
-                    var degree = FakeLoc.latitude.toInt()
-                    var minute = (FakeLoc.latitude - degree) * 60
-                    value.latitude = degree + minute / 100
+                    val absLat = kotlin.math.abs(FakeLoc.latitude)
+                    var degree = absLat.toInt()
+                    var minute = (absLat - degree) * 60
+                    value.latitude = degree * 100 + minute
 
-                    degree = FakeLoc.longitude.toInt()
-                    minute = (FakeLoc.longitude - degree) * 60
-                    value.longitude = degree + minute / 100
+                    val absLon = kotlin.math.abs(FakeLoc.longitude)
+                    degree = absLon.toInt()
+                    minute = (absLon - degree) * 60
+                    value.longitude = degree * 100 + minute
 
                     return value.toNmeaString()
                 }
@@ -178,13 +185,15 @@ abstract class BaseLocationHook: BaseDivineService() {
                     value.latitudeHemisphere = latitudeHemisphere
                     value.longitudeHemisphere = longitudeHemisphere
 
-                    var degree = FakeLoc.latitude.toInt()
-                    var minute = (FakeLoc.latitude - degree) * 60
-                    value.latitude = degree + minute / 100
+                    val absLat = kotlin.math.abs(FakeLoc.latitude)
+                    var degree = absLat.toInt()
+                    var minute = (absLat - degree) * 60
+                    value.latitude = degree * 100 + minute
 
-                    degree = FakeLoc.longitude.toInt()
-                    minute = (FakeLoc.longitude - degree) * 60
-                    value.longitude = degree + minute / 100
+                    val absLon = kotlin.math.abs(FakeLoc.longitude)
+                    degree = absLon.toInt()
+                    minute = (absLon - degree) * 60
+                    value.longitude = degree * 100 + minute
 
                     return value.toNmeaString()
                 }
@@ -209,13 +218,15 @@ abstract class BaseLocationHook: BaseDivineService() {
                     value.latitudeHemisphere = latitudeHemisphere
                     value.longitudeHemisphere = longitudeHemisphere
 
-                    var degree = FakeLoc.latitude.toInt()
-                    var minute = (FakeLoc.latitude - degree) * 60
-                    value.latitude = degree + minute / 100
+                    val absLat = kotlin.math.abs(FakeLoc.latitude)
+                    var degree = absLat.toInt()
+                    var minute = (absLat - degree) * 60
+                    value.latitude = degree * 100 + minute
 
-                    degree = FakeLoc.longitude.toInt()
-                    minute = (FakeLoc.longitude - degree) * 60
-                    value.longitude = degree + minute / 100
+                    val absLon = kotlin.math.abs(FakeLoc.longitude)
+                    degree = absLon.toInt()
+                    minute = (absLon - degree) * 60
+                    value.longitude = degree * 100 + minute
 
                     return value.toNmeaString()
                 }

@@ -5,6 +5,7 @@ import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.IXposedHookZygoteInit
 import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
+import moe.fuqiuluo.xposed.hooks.BasicLocationHook
 import moe.fuqiuluo.xposed.hooks.LocationManagerHook
 import moe.fuqiuluo.xposed.hooks.LocationServiceHook
 import moe.fuqiuluo.xposed.hooks.fused.AndroidFusedLocationProviderHook
@@ -47,7 +48,12 @@ class FakeLocation: IXposedHookLoadPackage, IXposedHookZygoteInit {
      * @throws Throwable Everything the callback throws is caught and logged.
      */
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam?) {
-        if (lpparam?.packageName != "android" && lpparam?.packageName != "com.android.phone") {
+        if (lpparam == null) return
+
+        val packageName = lpparam.packageName
+
+        // Skip certain system packages to avoid issues
+        if (packageName == "com.android.systemui") {
             return
         }
 
@@ -99,7 +105,41 @@ class FakeLocation: IXposedHookLoadPackage, IXposedHookZygoteInit {
             "com.oplus.location" -> {
                 OplusLocationHook(lpparam.classLoader)
             }
+            else -> {
+                // Hook ALL other apps for third-party location SDK support
+                // This allows hooking Baidu SDK, Tencent SDK, etc. in their host apps
+                hookAppProcess(lpparam, systemClassLoader)
+            }
         }
+    }
+
+    private fun hookAppProcess(lpparam: XC_LoadPackage.LoadPackageParam, systemClassLoader: ClassLoader) {
+        val classLoader = lpparam.classLoader
+        val packageName = lpparam.packageName
+
+        Logger.info("Hooking app process: $packageName")
+
+        // Hook android.location.LocationManager in app process
+        kotlin.runCatching {
+            val cLocationManager = XposedHelpers.findClass("android.location.LocationManager", systemClassLoader)
+            LocationManagerHook(cLocationManager)
+            Logger.debug("Hooked LocationManager in $packageName")
+        }.onFailure {
+            Logger.warn("Failed to hook LocationManager in $packageName: ${it.message}")
+        }
+
+        // Hook Location.set() and LocationResult for basic interception
+        kotlin.runCatching {
+            BasicLocationHook(classLoader)
+            Logger.debug("Hooked BasicLocationHook in $packageName")
+        }.onFailure {
+            Logger.warn("Failed to hook BasicLocationHook in $packageName: ${it.message}")
+        }
+
+        // Hook third-party location SDKs (Baidu, Tencent, AMap)
+        // Note: ThirdPartyLocationHook requires DivineService which may fail in app process
+        // but we try anyway in case the portal service is ready
+        ThirdPartyLocationHook(classLoader)
     }
 
     private fun startFakeLocHook(classLoader: ClassLoader) {

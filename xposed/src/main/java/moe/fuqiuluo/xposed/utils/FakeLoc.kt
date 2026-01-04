@@ -97,6 +97,12 @@ object FakeLoc {
      * 上一次的位置
      */
     @Volatile var lastLocation: Location? = null
+
+    /**
+     * 模拟位置更新间隔
+     */
+    var updateInterval: Long = 1000L
+
     @Volatile var latitude = 0.0
     @Volatile var longitude = 0.0
     @Volatile var altitude = 80.0
@@ -107,18 +113,31 @@ object FakeLoc {
 
     @Volatile var hasBearings = false
 
-    var bearing = 0.0
+    @Volatile
+    private var _bearing = 0.0
+
+    var bearing: Double
         get() {
-            if (hasBearings) {
-                return field
+            val current = _bearing
+            return if (hasBearings) {
+                current
             } else {
-                if (field >= 360.0) {
-                    field -= 360.0
-                }
-                field += 0.5
-                return field
+                // 自动旋转时返回规范化的方位角，但不修改内部状态
+                (current % 360.0).let { if (it < 0) it + 360.0 else it }
             }
         }
+        set(value) {
+            _bearing = value
+        }
+
+    /**
+     * 在非用户控制时自动递增方位角（用于模拟移动效果）
+     */
+    fun autoRotateBearing() {
+        if (!hasBearings) {
+            _bearing = (_bearing + 0.5) % 360.0
+        }
+    }
 
     var accuracy = 25.0f
         set(value) {

@@ -58,23 +58,24 @@ object MockServiceHelper {
     }
 
     fun isGnssMockStart(locationManager: LocationManager): Boolean {
-        if (!::randomKey.isInitialized) {
-            return false
-        }
-        val rely = Bundle()
-        rely.putString("command_id", "is_gnss_start")
-        if(locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)) {
-            return rely.getBoolean("is_gnss_start")
-        }
-        return false
+        // 因为 Location Mock 和 GNSS Mock 现在完全联动
+        // 所以检查 is_start 即可（与 isMockStart 相同）
+        return isMockStart(locationManager)
     }
 
-    fun startGnssMock(locationManager: LocationManager): Boolean {
+    fun startGnssMock(locationManager: LocationManager, context: android.content.Context): Boolean {
         if (!::randomKey.isInitialized) {
             return false
         }
+        // 使用 start 命令以确保完全联动
         val rely = Bundle()
-        rely.putString("command_id", "start_gnss_mock")
+        rely.putString("command_id", "start")
+        // 从 SharedPreferences 读取配置，而不是从 Xposed 模块的 FakeLoc
+        val sharedPrefs = context.getSharedPreferences(PROVIDER_NAME, android.content.Context.MODE_PRIVATE)
+        rely.putDouble("speed", sharedPrefs.getFloat("speed", 1.2f).toDouble())
+        rely.putDouble("altitude", sharedPrefs.getFloat("altitude", 0f).toDouble())
+        rely.putFloat("accuracy", sharedPrefs.getFloat("accuracy", 0f))
+        startLoopBroadcastLocation(locationManager)
         return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
     }
 
@@ -82,8 +83,10 @@ object MockServiceHelper {
         if (!::randomKey.isInitialized) {
             return false
         }
+        // 使用 stop 命令以确保完全联动
         val rely = Bundle()
-        rely.putString("command_id", "stop_gnss_mock")
+        rely.putString("command_id", "stop")
+        stopLoopBroadcastLocation()
         return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
     }
 
@@ -132,6 +135,8 @@ object MockServiceHelper {
         rely.putDouble("altitude", altitude)
         rely.putFloat("accuracy", accuracy)
         startLoopBroadcastLocation(locationManager)
+        
+        // Xposed 层已实现 Location Mock 和 GNSS Mock 的联动
         return if(locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)) {
             isMockStart(locationManager)
         } else {
@@ -146,6 +151,8 @@ object MockServiceHelper {
         val rely = Bundle()
         rely.putString("command_id", "stop")
         stopLoopBroadcastLocation()
+        
+        // Xposed 层已实现 Location Mock 和 GNSS Mock 的联动
         if (locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)) {
             return !isMockStart(locationManager)
         }
@@ -326,7 +333,7 @@ object MockServiceHelper {
 
         val rely = Bundle()
         rely.putString("command_id", "put_config")
-        rely.putBoolean("enable", FakeLoc.enable)
+        // Note: Do NOT send "enable" here - it should only be controlled by start/stop commands
         rely.putDouble("altitude", FakeLoc.altitude)
         rely.putDouble("speed", FakeLoc.speed)
         rely.putBoolean("enable_debug_log", FakeLoc.enableDebugLog)
@@ -419,9 +426,13 @@ object MockServiceHelper {
             if (soFile.exists()) {
                 val originalHash = ShellUtils.executeCommandToBytes("head -c 4096 ${soFile.absolutePath}")
                 val newHash = ShellUtils.executeCommandToBytes("head -c 4096 ${tmpSoFile.absolutePath}")
-                if (originalHash.contentEquals(newHash)) {
+                if (!originalHash.contentEquals(newHash)) {
+                    // 文件内容不同，需要更新
                     ShellUtils.executeCommand("rm ${soFile.absolutePath}")
                     ShellUtils.executeCommand("mv ${tmpSoFile.absolutePath} ${soFile.absolutePath}")
+                } else {
+                    // 文件内容相同，删除临时文件
+                    ShellUtils.executeCommand("rm ${tmpSoFile.absolutePath}")
                 }
             } else if (tmpSoFile.exists()) {
                 ShellUtils.executeCommand("mv ${tmpSoFile.absolutePath} ${soFile.absolutePath}")

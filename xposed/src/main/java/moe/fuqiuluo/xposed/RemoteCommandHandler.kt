@@ -67,6 +67,8 @@ object RemoteCommandHandler {
                 val accuracy = rely.getFloat("accuracy", FakeLoc.accuracy)
 
                 FakeLoc.enable = true
+                FakeLoc.enableMockGnss = true  // 同时启动 GNSS Mock
+                FakeLoc.enableMockWifi = true  // 同时启动 WiFi Mock，防止通过WiFi泄露真实位置
                 if (isLoadedLibrary) {
                     Dobby.setStatus(true)
                 }
@@ -74,15 +76,20 @@ object RemoteCommandHandler {
                 FakeLoc.speed = speed
                 FakeLoc.altitude = altitude
                 FakeLoc.accuracy = accuracy
+                
+                Logger.info("Location Mock 启动，同时启动 GNSS Mock 和 WiFi Mock")
 
                 return true
             }
             "stop" -> {
                 FakeLoc.enable = false
+                FakeLoc.enableMockGnss = false  // 同时关闭 GNSS Mock
+                FakeLoc.enableMockWifi = false  // 同时关闭 WiFi Mock
                 FakeLoc.hasBearings = false
                 if (isLoadedLibrary) {
                     Dobby.setStatus(false)
                 }
+                Logger.info("Location Mock 关闭，同时关闭 GNSS Mock 和 WiFi Mock")
                 return true
             }
             "is_start" -> {
@@ -90,11 +97,15 @@ object RemoteCommandHandler {
                 return true
             }
             "start_gnss_mock" -> {
+                FakeLoc.enable = true  // GNSS Mock 依赖 Location Mock
                 FakeLoc.enableMockGnss = true
+                Logger.info("GNSS Mock 启动，同时启动 Location Mock")
                 return true
             }
             "stop_gnss_mock" -> {
+                FakeLoc.enable = false  // GNSS Mock 关闭时同时关闭 Location Mock
                 FakeLoc.enableMockGnss = false
+                Logger.info("GNSS Mock 关闭，同时关闭 Location Mock")
                 return true
             }
             "is_gnss_start" -> {
@@ -180,31 +191,45 @@ object RemoteCommandHandler {
                     "+" -> {
                         newLat += FakeLoc.latitude
                         newLon += FakeLoc.longitude
-                        return updateCoordinate(newLat, newLon)
+                        return updateCoordinate(newLat, newLon).also {
+                            if (FakeLoc.isSystemServerProcess) LocationServiceHook.callOnLocationChanged()
+                        }
                     }
                     "-" -> {
                         newLat = FakeLoc.latitude - newLat
                         newLon = FakeLoc.longitude - newLon
-                        return updateCoordinate(newLat, newLon)
+                        return updateCoordinate(newLat, newLon).also {
+                            if (FakeLoc.isSystemServerProcess) LocationServiceHook.callOnLocationChanged()
+                        }
                     }
                     "*" -> {
                         newLat *= FakeLoc.latitude
                         newLon *= FakeLoc.longitude
-                        return updateCoordinate(newLat, newLon)
+                        return updateCoordinate(newLat, newLon).also {
+                            if (FakeLoc.isSystemServerProcess) LocationServiceHook.callOnLocationChanged()
+                        }
                     }
                     "/" -> {
+                        // 检查除数是否为零
                         if (newLat == 0.0 || newLon == 0.0) {
                             return false
                         }
-                        newLat /= FakeLoc.latitude
-                        newLon /= FakeLoc.longitude
-                        return updateCoordinate(newLat, newLon)
+                        // 当前值 / 新值（与 "-" 操作保持一致）
+                        newLat = FakeLoc.latitude / newLat
+                        newLon = FakeLoc.longitude / newLon
+                        return updateCoordinate(newLat, newLon).also {
+                            if (FakeLoc.isSystemServerProcess) LocationServiceHook.callOnLocationChanged()
+                        }
                     }
                     "=" -> {
-                        return updateCoordinate(newLat, newLon)
+                        return updateCoordinate(newLat, newLon).also {
+                            if (FakeLoc.isSystemServerProcess) LocationServiceHook.callOnLocationChanged()
+                        }
                     }
                     "random" -> {
-                        return updateCoordinate(Random.nextDouble(-90.0, 90.0), Random.nextDouble(-180.0, 180.0))
+                        return updateCoordinate(Random.nextDouble(-90.0, 90.0), Random.nextDouble(-180.0, 180.0)).also {
+                            if (FakeLoc.isSystemServerProcess) LocationServiceHook.callOnLocationChanged()
+                        }
                     }
                 }
                 return true

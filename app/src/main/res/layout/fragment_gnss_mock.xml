@@ -37,6 +37,18 @@
                         android:textColor="@color/portal_mini_title_color"
                         android:textAppearance="@style/TextAppearance.AppCompat.Inverse"
                         android:text="@string/satellites_info"/>
+                    
+                    <!-- GNSS Mock 状态显示 -->
+                    <TextView
+                        android:id="@+id/gnss_mock_status"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="状态: 未启动"
+                        android:textColor="#FF5722"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:padding="4dp"
+                        android:gravity="center"/>
 
                     <!-- 原有的卫星信息部分 -->
                     <androidx.constraintlayout.widget.ConstraintLayout

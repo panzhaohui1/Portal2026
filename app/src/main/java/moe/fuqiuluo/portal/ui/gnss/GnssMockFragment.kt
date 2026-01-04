@@ -151,10 +151,13 @@ class GnssMockFragment : Fragment() {
             button.isClickable = false
             try {
                 MockServiceHelper.putConfig(locationManager, requireContext())
-                if (MockServiceHelper.startGnssMock(locationManager)) {
+                if (MockServiceHelper.startGnssMock(locationManager, requireContext())) {
                     updateMockButtonState(button, "停止模拟", R.drawable.rounded_play_disabled_24)
+                    updateStatusText(true)
+                    showToast("GNSS Mock 启动成功")
                 } else {
                     showToast("模拟GNSS服务启动失败")
+                    updateStatusText(false)
                     return@launch
                 }
             } finally {
@@ -182,6 +185,10 @@ class GnssMockFragment : Fragment() {
 
                     if (MockServiceHelper.stopGnssMock(locationManager)) {
                         updateMockButtonState(button, "开始模拟", R.drawable.rounded_play_arrow_24)
+                        withContext(Dispatchers.Main) {
+                            updateStatusText(false)
+                        }
+                        showToast("GNSS Mock 已停止")
                         return@withContext true
                     } else {
                         showToast("模拟GNSS服务停止失败")
@@ -287,6 +294,42 @@ class GnssMockFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        // 刷新按钮状态，确保从 Location Mock 页面自动启动后状态正确
+        refreshMockStatus()
+    }
+    
+    private fun refreshMockStatus() {
+        if (!::locationManager.isInitialized || _binding == null) return
+        
+        val isRunning = MockServiceHelper.isGnssMockStart(locationManager)
+        
+        // 更新按钮状态
+        if (isRunning) {
+            binding.switchGnssMock.text = "停止模拟"
+            ContextCompat.getDrawable(requireContext(), R.drawable.rounded_play_disabled_24)?.let {
+                binding.switchGnssMock.icon = it
+            }
+        } else {
+            binding.switchGnssMock.text = "开始模拟"
+            ContextCompat.getDrawable(requireContext(), R.drawable.rounded_play_arrow_24)?.let {
+                binding.switchGnssMock.icon = it
+            }
+        }
+        
+        // 更新状态文本
+        updateStatusText(isRunning)
+    }
+    
+    private fun updateStatusText(isRunning: Boolean) {
+        if (_binding == null) return
+        
+        if (isRunning) {
+            binding.gnssMockStatus.text = "✓ GNSS Mock 已启动"
+            binding.gnssMockStatus.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_green_dark))
+        } else {
+            binding.gnssMockStatus.text = "✗ GNSS Mock 未启动"
+            binding.gnssMockStatus.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_red_dark))
+        }
     }
 
     override fun onDestroy() {

@@ -12,11 +12,11 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "moe.fuqiuluo.portal"
+        applicationId = "moe.fuqiuluo.portal.dev"  // DEV 版本，与正式版共存
         minSdk = 26
         targetSdk = 35
         versionCode = getVersionCode()
-        versionName = "1.0.4" + ".r${getGitCommitCount()}." + getVersionName()
+        versionName = "1.1.0-DEV" + ".r${getGitCommitCount()}." + getVersionName()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
