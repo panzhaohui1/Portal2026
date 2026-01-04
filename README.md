@@ -1,10 +1,4 @@
-# Portal
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Ffuqiuluo%2FPortal.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Ffuqiuluo%2FPortal?ref=badge_shield)
-
-
-秋夜长，殊未央，月明白露澄清光，层城绮阁遥相望。
-
-Telegram: https://t.me/portal_fuqiuluo
+# Portal 学习练手
 
 The virtual positioning module based on LSPosed only provides Hook system services to achieve virtual positioning, and cannot be integrated into the APP.
 
@@ -43,20 +37,6 @@ location.extras?.putBoolean("portal.enable", true)
 location.extras?.putBoolean("is_mock", true)
 ```
 
-# Features
-
-- [x] **Portal** will create a notification when it is running.
-- [x] **Portal** will add extra to the `Location`.
-- [x] **Portal** will mock in any case.
-- [ ] **Portal** will mock the gps status.
-- [ ] **Portal** will mock the cell info.
-- [ ] **Portal** will mock the wifi info.
-- [x] **Portal** will mock the sensor info.
-- [x] **Portal** can move position by rocker.
-- [x] **Portal** can set the speed in the settings.
-- [x] **Portal** can set the altitude in the settings.
-- [x] **Portal** can set the accuracy in the settings.
-- [x] **Portal** will change the bearing when moving.
 
 # Thanks
 
