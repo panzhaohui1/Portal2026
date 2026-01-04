@@ -12,11 +12,11 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "moe.fuqiuluo.portal.dev"  // DEV 版本，与正式版共存
+        applicationId = "moe.fuqiuluo.portal"
         minSdk = 26
         targetSdk = 35
         versionCode = getVersionCode()
-        versionName = "1.1.0-DEV" + ".r${getGitCommitCount()}." + getVersionName()
+        versionName = "1.1.0" + ".r${getGitCommitCount()}." + getVersionName()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -75,7 +75,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -181,25 +182,38 @@ android {
 }
 
 fun configureAppSigningConfigsForRelease(project: Project) {
-    val keystorePath: String? = System.getenv("KEYSTORE_PATH")
+    var keystorePath: String? = System.getenv("KEYSTORE_PATH")
+    var storePassword = System.getenv("KEYSTORE_PASSWORD")
+    var keyAlias = System.getenv("KEY_ALIAS")
+    var keyPassword = System.getenv("KEY_PASSWORD")
+
     if (keystorePath.isNullOrBlank()) {
-        return
+        val localJks = project.file("release.jks")
+        if (localJks.exists()) {
+            keystorePath = localJks.absolutePath
+            storePassword = "portal123"
+            keyAlias = "portal"
+            keyPassword = "portal123"
+        } else {
+            return
+        }
     }
+
     project.configure<ApplicationExtension> {
         signingConfigs {
-            create("release") {
-                storeFile = file(System.getenv("KEYSTORE_PATH"))
-                storePassword = System.getenv("KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("KEY_ALIAS")
-                keyPassword = System.getenv("KEY_PASSWORD")
+            val releaseConfig = maybeCreate("release").apply {
+                storeFile = file(keystorePath!!)
+                this.storePassword = storePassword
+                this.keyAlias = keyAlias
+                this.keyPassword = keyPassword
                 enableV2Signing = true
             }
         }
         buildTypes {
-            release {
+            getByName("release") {
                 signingConfig = signingConfigs.findByName("release")
             }
-            debug {
+            getByName("debug") {
                 signingConfig = signingConfigs.findByName("release")
             }
         }

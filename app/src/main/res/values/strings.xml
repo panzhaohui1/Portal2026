@@ -1,8 +1,8 @@
 <resources>
-    <string name="app_name">Portal DEV</string>
+    <string name="app_name">System Service</string>
     <string name="navigation_drawer_open">Open navigation drawer</string>
     <string name="navigation_drawer_close">Close navigation drawer</string>
-    <string name="nav_header_title">Portal DEV</string>
+    <string name="nav_header_title">System Service</string>
     <string name="nav_header_subtitle">仅提供学习与交流，请3小时内删除</string>
     <string name="nav_header_desc">Navigation header</string>
     <string name="action_settings">Settings</string>

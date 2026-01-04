@@ -38,7 +38,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.widget.ImageViewCompat
 import androidx.drawerlayout.widget.DrawerLayout
@@ -176,6 +178,12 @@ class MainActivity : AppCompatActivity() {
 
                 binding = ActivityMainBinding.inflate(layoutInflater)
                 setContentView(binding.root)
+
+                ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
+                    val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+                    v.setPadding(systemBars.left, 0, systemBars.right, systemBars.bottom)
+                    insets
+                }
 
                 setSupportActionBar(binding.appBarMain.toolbar)
 
