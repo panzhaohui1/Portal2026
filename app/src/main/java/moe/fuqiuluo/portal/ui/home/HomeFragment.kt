@@ -185,8 +185,8 @@ class HomeFragment : Fragment() {
             }
         })
         baiduMapViewModel.mLocationClient = mLocationClient
-        mLocationClient.enableLocInForeground(1, baiduMapViewModel.mNotification)
-        mLocationClient.start()
+        // mLocationClient.enableLocInForeground(1, baiduMapViewModel.mNotification)
+        // mLocationClient.start()
 
 
         binding.mapTypeGroup.setOnCheckedChangeListener { _, checkedId ->
@@ -534,6 +534,10 @@ class HomeFragment : Fragment() {
     override fun onResume() {
         super.onResume()
 
+        if (!mLocationClient.isStarted) {
+            mLocationClient.start()
+        }
+
         if (_binding != null)
             binding.bmapView.onResume()
     }
@@ -551,6 +555,10 @@ class HomeFragment : Fragment() {
 
     override fun onPause() {
         super.onPause()
+
+        if (mLocationClient.isStarted) {
+            mLocationClient.stop()
+        }
 
         if (_binding != null) {
             binding.bmapView.onPause()
