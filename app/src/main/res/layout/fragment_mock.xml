@@ -6,176 +6,184 @@
     android:layout_height="match_parent"
     tools:context=".ui.mock.MockFragment">
 
-    <LinearLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical">
+        android:background="#FAFAFA">
 
+        <!-- Top Colored Header -->
+        <View
+            android:id="@+id/header_background"
+            android:layout_width="match_parent"
+            android:layout_height="180dp"
+            android:background="@color/primary"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <!-- Mock Location Card (Overlapping) -->
         <androidx.cardview.widget.CardView
             android:id="@+id/mock_location_card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardCornerRadius="4dp"
-            android:layout_margin="8dp"
-            app:cardPreventCornerOverlap="false"
-            app:contentPadding="8dp">
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="32dp"
+            app:cardBackgroundColor="@color/white"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp"
+            app:layout_constraintTop_toTopOf="parent">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:padding="16dp">
 
                 <TextView
-                    android:layout_width="match_parent"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textColor="@color/portal_mini_title_color"
-                    android:textAppearance="@style/TextAppearance.AppCompat.Inverse"
-                    android:text="@string/target_location"/>
+                    android:text="@string/target_location"
+                    android:textColor="@color/primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/mock_location_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/none"
+                    android:textColor="#333333"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/mock_location_address"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/none_none"
+                    android:textColor="#757575"
+                    android:textSize="13sp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:layout_marginBottom="10dp"
-                    android:orientation="vertical">
+                    android:layout_marginTop="4dp"
+                    android:orientation="horizontal">
 
                     <TextView
-                        android:id="@+id/mock_location_name"
-                        android:layout_width="match_parent"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/none"
-                        android:textStyle="bold"
-                        android:textAppearance="@style/TextAppearance.AppCompat.Title"
-                        android:textColor="@color/black"/>
+                        android:text="经纬度: "
+                        android:textColor="#9E9E9E"
+                        android:textSize="12sp" />
 
                     <TextView
-                        android:id="@+id/mock_location_address"
-                        android:layout_width="match_parent"
+                        android:id="@+id/mock_location_latlon"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/none_none"
-                        android:textAppearance="@style/TextAppearance.AppCompat.Body1"
-                        android:textColor="@color/black"/>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginTop="4dp">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/latlon_display"
-                            android:textAppearance="@style/TextAppearance.AppCompat.Body2"
-                            android:textColor="@color/black"/>
-
-                        <TextView
-                            android:id="@+id/mock_location_latlon"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/default_latlon"
-                            android:textAppearance="@style/TextAppearance.AppCompat.Body2"
-                            android:textColor="@color/portal_appbar_color_center"/>
-
-                    </LinearLayout>
-
+                        android:text="@string/default_latlon"
+                        android:textColor="@color/primary"
+                        android:textSize="12sp" />
                 </LinearLayout>
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:baselineAligned="false"
+                    android:layout_marginTop="16dp"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal">
 
-                    <LinearLayout
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/switch_mock"
+                        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:backgroundTint="@color/primary"
+                        android:text="@string/start_mock"
+                        android:textColor="@color/white"
+                        app:cornerRadius="20dp"
+                        app:rippleColor="@color/white" />
+
+                    <Space
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1">
+                        android:layout_weight="1" />
 
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/switch_mock"
-                            android:layout_width="wrap_content"
-                            android:layout_height="28dp"
-                            android:textColor="@color/white"
-                            android:text="@string/start_mock"
-                            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-                            android:insetRight="0dp"
-                            android:insetLeft="0dp"
-                            android:insetTop="0dp"
-                            android:insetBottom="0dp"
-                            android:textSize="12sp"
-                            app:icon="@drawable/rounded_play_arrow_24"
-                            app:iconGravity="textStart"
-                            app:iconPadding="0dp"
-                            android:padding="6dp"
-                            app:iconTint="@color/white"
-                            app:cornerRadius="12dp"/>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="8dp"
+                        android:text="@string/rocker"
+                        android:textColor="#757575"
+                        android:textSize="14sp" />
 
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="match_parent"
-                        android:gravity="end|center">
-
-                        <CheckedTextView
-                            android:id="@+id/rocker"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:checkMark="?android:attr/listChoiceIndicatorMultiple"
-                            android:checkMarkTint="@color/portal_mock_off"
-                            android:checked="false"
-                            android:gravity="center"
-                            android:text="@string/rocker"
-                            android:textColor="@color/portal_mock_off"
-                            android:textSize="12sp" />
-                    </LinearLayout>
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/rocker"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="false"
+                        app:thumbTint="@color/white"
+                        app:trackTint="@color/primary" />
                 </LinearLayout>
 
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
+        <!-- History Title -->
         <TextView
-            android:layout_width="match_parent"
+            android:id="@+id/history_title"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:layout_marginLeft="20dp"
-            android:layout_marginRight="20dp"
-            android:layout_marginBottom="4dp"
-            android:textAppearance="@style/TextAppearance.AppCompat.Inverse"
-            android:textColor="@color/portal_mini_title_color"
-            android:text="@string/history_location"/>
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="16dp"
+            android:text="@string/history_location"
+            android:textColor="#757575"
+            android:textSize="14sp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/mock_location_card" />
 
-        <com.google.android.material.card.MaterialCardView
+        <!-- History List -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/historical_location_list"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_margin="8dp"
-            app:cardCornerRadius="6dp"
-            app:cardPreventCornerOverlap="false"
-            app:contentPadding="8dp">
+            android:layout_height="0dp"
+            android:layout_marginTop="8dp"
+            android:orientation="vertical"
+            android:paddingHorizontal="8dp"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/history_title"
+            tools:listitem="@layout/layout_history_location_item" />
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/historical_location_list"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"/>
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_add_location"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="24dp"
+        android:clickable="true"
+        android:contentDescription="@string/add_location"
+        android:focusable="true"
+        android:src="@drawable/baseline_add_location_alt_24"
+        app:backgroundTint="@color/colorPrimary"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:tint="@color/white" />
 
-        </com.google.android.material.card.MaterialCardView>
-
-    </LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab_mock_location"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="@dimen/fab_margin"
+        android:layout_gravity="bottom|end"
         android:layout_marginEnd="@dimen/fab_margin"
-        android:contentDescription="@string/follow_location"
-        app:srcCompat="@drawable/sharp_location_off_24"
+        android:layout_marginBottom="@dimen/fab_margin"
         android:backgroundTint="@color/portal_mock_off"
+        android:contentDescription="@string/follow_location"
         android:tint="@color/portal_appbar_color"
-        app:fabSize="auto"
         android:visibility="gone"
-        android:layout_gravity="bottom|end"/>
+        app:fabSize="auto"
+        app:srcCompat="@drawable/sharp_location_off_24" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -197,7 +197,7 @@ class MainActivity : AppCompatActivity() {
                 // menu should be considered as top level destinations.
                 appBarConfiguration = AppBarConfiguration(
                     setOf(
-                        R.id.nav_home, R.id.nav_mock, R.id.nav_gnss_mock, R.id.nav_route_gallery, R.id.nav_settings
+                        R.id.nav_select_location, R.id.nav_mock, R.id.nav_gnss_mock, R.id.nav_route_gallery, R.id.nav_settings
                     ), drawerLayout
                 )
 
@@ -210,7 +210,7 @@ class MainActivity : AppCompatActivity() {
 
                 navController.addOnDestinationChangedListener(object: OnDestinationChangedListener {
                     val menuIdMapping = mapOf(
-                        R.id.nav_home to R.id.action_search,
+                        R.id.nav_select_location to R.id.action_search,
                         //R.id.nav_settings to R.id.action_info
                     )
 

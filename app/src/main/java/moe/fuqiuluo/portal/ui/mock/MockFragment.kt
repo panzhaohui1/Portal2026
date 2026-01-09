@@ -38,6 +38,7 @@ import moe.fuqiuluo.portal.service.MockServiceHelper
 import moe.fuqiuluo.portal.ui.viewmodel.MockServiceViewModel
 import moe.fuqiuluo.portal.ui.viewmodel.MockViewModel
 import moe.fuqiuluo.xposed.utils.FakeLoc
+import androidx.navigation.Navigation
 
 class MockFragment : Fragment() {
     private var _binding: FragmentMockBinding? = null
@@ -94,16 +95,33 @@ class MockFragment : Fragment() {
                     Toast.makeText(requireContext(), "请先启动模拟", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
-                val checkedTextView = it as CheckedTextView
-                checkedTextView.toggle()
+                val checkable = it as android.widget.Checkable
+                // Toggle is handled by the Switch click automatically, but we might want to enforce state sync?
+                // Actually for Switch, clicking it toggles it. For CheckedTextView, you might need to call toggle().
+                // But let's check: setOnClickListener on a Switch:
+                // If I click a Switch, it toggles visually AND fires listener.
+                // The code below manually toggles?
+                // "checkedTextView.toggle()"
+                // If it's a Switch, clicking it updates the state. If I call toggle() again, it might flip back?
+                // CheckedTextView does NOT automatically toggle on click usually unless defined.
+                // Switch DOES.
+                // So I should REMOVE `checkable.toggle()` if it's a switch?
+                // Let's rely on `binding.rocker.isChecked` status which binds to the view state.
+                
+                // Wait, existing code: "val checkedTextView = it as CheckedTextView" -> "checkedTextView.toggle()"
+                // If I use Switch, I don't need to manual toggle.
+                
+                val isChecked = binding.rocker.isChecked
 
                 if (!requireContext().drawOverOtherAppsEnabled()) {
                     Toast.makeText(requireContext(), "请授权悬浮窗权限", Toast.LENGTH_SHORT).show()
+                    // Revert if permission failed
+                    binding.rocker.isChecked = !isChecked 
                     return@setOnClickListener
                 }
 
                 lifecycleScope.launch(Dispatchers.Main) {
-                    if (checkedTextView.isChecked) {
+                    if (isChecked) {
                         rocker.show()
                     } else {
                         rocker.hide()
@@ -133,6 +151,10 @@ class MockFragment : Fragment() {
                     rockerCoroutineController.resume()
                 }
             })
+        }
+
+        binding.fabAddLocation.setOnClickListener {
+            Navigation.findNavController(it).navigate(R.id.nav_select_location)
         }
 
         requireContext().selectLocation?.let {

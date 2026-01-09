@@ -42,7 +42,7 @@ import moe.fuqiuluo.portal.service.MockServiceHelper
 import moe.fuqiuluo.portal.ui.viewmodel.HomeViewModel
 import moe.fuqiuluo.portal.ui.viewmodel.MockServiceViewModel
 import moe.fuqiuluo.xposed.utils.FakeLoc
-import androidx.navigation.findNavController
+import androidx.navigation.fragment.findNavController
 
 class RouteMockFragment : Fragment() {
     private var _binding: FragmentRouteMockBinding? = null
@@ -145,79 +145,8 @@ class RouteMockFragment : Fragment() {
         }
 
 
-        binding.fab.setOnClickListener { view ->
-            val subFabList = arrayOf(
-                binding.fabAddRoute
-            )
-
-            if (!routeMockViewModel.mFabOpened) {
-                routeMockViewModel.mFabOpened = true
-
-                val rotateMainFab = ObjectAnimator.ofFloat(view, "rotation", 0f, 90f)
-                rotateMainFab.duration = 200
-
-                val animators = arrayListOf<ObjectAnimator>()
-                animators.add(rotateMainFab)
-                subFabList.forEachIndexed { index, fab ->
-                    fab.visibility = View.VISIBLE
-                    fab.alpha = 1f
-                    fab.scaleX = 1f
-                    fab.scaleY = 1f
-                    val translationX =
-                        ObjectAnimator.ofFloat(fab, "translationX", 0f, 20f + index * 8f)
-                    translationX.duration = 200
-                    animators.add(translationX)
-                }
-
-                val animatorSet = AnimatorSet()
-                animatorSet.playTogether(animators.toList())
-                animatorSet.interpolator = DecelerateInterpolator()
-                animatorSet.addListener(object : AnimatorListenerAdapter() {
-                    override fun onAnimationEnd(animation: Animator) {
-                        view.isClickable = true
-                    }
-                })
-                view.isClickable = false
-                animatorSet.start()
-            } else {
-                routeMockViewModel.mFabOpened = false
-
-                val rotateMainFab = ObjectAnimator.ofFloat(view, "rotation", 90f, 0f)
-                rotateMainFab.duration = 200
-
-                val animators = arrayListOf<ObjectAnimator>()
-                animators.add(rotateMainFab)
-                subFabList.forEachIndexed { index, fab ->
-                    val transX = ObjectAnimator.ofFloat(fab, "translationX", 0f, -20f - index * 8f)
-                    transX.duration = 150
-                    val scaleX = ObjectAnimator.ofFloat(fab, "scaleX", 1f, 0f)
-                    scaleX.duration = 200
-                    val scaleY = ObjectAnimator.ofFloat(fab, "scaleY", 1f, 0f)
-                    scaleY.duration = 200
-                    val alpha = ObjectAnimator.ofFloat(fab, "alpha", 1f, 0f)
-                    alpha.duration = 200
-                    animators.add(transX)
-                    animators.add(scaleX)
-                    animators.add(scaleY)
-                    animators.add(alpha)
-                }
-
-                val animatorSet = AnimatorSet()
-                animatorSet.playTogether(animators.toList())
-                animatorSet.interpolator = DecelerateInterpolator()
-                animatorSet.addListener(object : AnimatorListenerAdapter() {
-                    override fun onAnimationEnd(animation: Animator) {
-                        subFabList.forEach { it.visibility = View.GONE }
-                        view.isClickable = true
-                    }
-                })
-                view.isClickable = false
-                animatorSet.start()
-            }
-        }
-
         binding.fabAddRoute.setOnClickListener {
-            activity?.findNavController(R.id.nav_host_fragment_content_main)?.navigate(R.id.nav_route_edit)
+            findNavController().navigate(R.id.nav_route_edit)
         }
 
         var locations = requireContext().jsonHistoricalRoutes

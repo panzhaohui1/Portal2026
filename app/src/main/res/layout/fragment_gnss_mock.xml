@@ -9,420 +9,327 @@
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:background="#F5F5F5"
+        android:fillViewport="true">
 
-        <LinearLayout
+        <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:layout_height="wrap_content">
 
-            <!-- 原有的卫星信息卡片 -->
-            <androidx.cardview.widget.CardView
-                android:id="@+id/mock_gnss_card"
+            <!-- 顶部绿色背景区域 -->
+            <FrameLayout
+                android:id="@+id/header_layout"
+                android:layout_width="match_parent"
+                android:layout_height="220dp"
+                android:background="@color/colorPrimary">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="24dp"
+                    android:layout_marginTop="56dp"
+                    android:text="@string/menu_gnss_mock"
+                    android:textColor="@color/white"
+                    android:textSize="28sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="24dp"
+                    android:layout_marginTop="96dp"
+                    android:text="卫星信号模拟与NMEA数据注入"
+                    android:textColor="#CCFFFFFF"
+                    android:textSize="14sp" />
+            </FrameLayout>
+
+            <!-- 主要内容卡片区域，向上重叠 -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="4dp"
-                android:layout_margin="8dp"
-                app:cardPreventCornerOverlap="false"
-                app:contentPadding="8dp">
+                android:layout_marginTop="140dp"
+                android:orientation="vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="80dp">
 
-                <LinearLayout
+                <!-- 卫星信息卡片 -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/mock_gnss_card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/portal_mini_title_color"
-                        android:textAppearance="@style/TextAppearance.AppCompat.Inverse"
-                        android:text="@string/satellites_info"/>
-                    
-                    <!-- GNSS Mock 状态显示 -->
-                    <TextView
-                        android:id="@+id/gnss_mock_status"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="状态: 未启动"
-                        android:textColor="#FF5722"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:padding="4dp"
-                        android:gravity="center"/>
-
-                    <!-- 原有的卫星信息部分 -->
-                    <androidx.constraintlayout.widget.ConstraintLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:padding="4dp">
-
-                        <moe.fuqiuluo.portal.android.widget.SatelliteRadarView
-                            android:id="@+id/satellite_rada_view"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:gravity="center"
-                            app:layout_constraintEnd_toStartOf="@+id/satellites_info"
-                            app:layout_constraintHorizontal_chainStyle="spread"
-                            app:layout_constraintHorizontal_weight="1"
-                            app:layout_constraintStart_toStartOf="parent"
-                            app:layout_constraintTop_toTopOf="parent" />
-
-                        <LinearLayout
-                            android:id="@+id/satellites_info"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:gravity="center"
-                            app:layout_constraintHorizontal_weight="2"
-                            app:layout_constraintStart_toEndOf="@+id/satellite_rada_view"
-                            app:layout_constraintEnd_toStartOf="@+id/text3"
-                            app:layout_constraintTop_toTopOf="parent">
-
-                            <TextView
-                                android:visibility="gone"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="卫星信息"
-                                android:gravity="center" />
-
-                            <androidx.constraintlayout.widget.ConstraintLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:padding="3dp">
-
-                                <TextView
-                                    android:id="@+id/in_view_left_item"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/in_view_left_item"
-                                    android:gravity="center"
-                                    android:textStyle="bold"
-                                    android:textSize="10sp"
-                                    app:layout_constraintHorizontal_weight="1"
-                                    app:layout_constraintStart_toStartOf="parent"
-                                    app:layout_constraintEnd_toStartOf="@+id/in_view_right_item"
-                                    app:layout_constraintTop_toTopOf="parent"
-                                    app:layout_constraintHorizontal_chainStyle="spread" />
-
-                                <TextView
-                                    android:id="@+id/in_view_right_item"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/zero"
-                                    android:gravity="center"
-                                    android:textColor="@color/black"
-                                    android:textStyle="bold"
-                                    android:textSize="10sp"
-                                    app:layout_constraintHorizontal_weight="1"
-                                    app:layout_constraintStart_toEndOf="@+id/in_view_left_item"
-                                    app:layout_constraintEnd_toEndOf="parent"
-                                    app:layout_constraintTop_toTopOf="parent" />
-
-                            </androidx.constraintlayout.widget.ConstraintLayout>
-
-                            <androidx.constraintlayout.widget.ConstraintLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:padding="3dp">
-
-                                <TextView
-                                    android:id="@+id/in_use_left_item"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/in_use_satellite"
-                                    android:gravity="center"
-                                    android:textStyle="bold"
-                                    android:textSize="10sp"
-                                    app:layout_constraintHorizontal_weight="1"
-                                    app:layout_constraintStart_toStartOf="parent"
-                                    app:layout_constraintEnd_toStartOf="@+id/in_use_right_item"
-                                    app:layout_constraintTop_toTopOf="parent"
-                                    app:layout_constraintHorizontal_chainStyle="spread" />
-
-                                <TextView
-                                    android:id="@+id/in_use_right_item"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/zero"
-                                    android:gravity="center"
-                                    android:textColor="@color/black"
-                                    android:textStyle="bold"
-                                    android:textSize="10sp"
-                                    app:layout_constraintHorizontal_weight="1"
-                                    app:layout_constraintStart_toEndOf="@+id/in_use_left_item"
-                                    app:layout_constraintEnd_toEndOf="parent"
-                                    app:layout_constraintTop_toTopOf="parent" />
-
-                            </androidx.constraintlayout.widget.ConstraintLayout>
-
-                            <androidx.constraintlayout.widget.ConstraintLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:padding="3dp">
-
-                                <TextView
-                                    android:id="@+id/signal_strength_left_item"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:text="平均信号强度"
-                                    android:gravity="center"
-                                    android:textStyle="bold"
-                                    android:textSize="10sp"
-                                    app:layout_constraintHorizontal_weight="1"
-                                    app:layout_constraintStart_toStartOf="parent"
-                                    app:layout_constraintEnd_toStartOf="@+id/signal_strength_right_item"
-                                    app:layout_constraintTop_toTopOf="parent"
-                                    app:layout_constraintHorizontal_chainStyle="spread" />
-
-                                <TextView
-                                    android:id="@+id/signal_strength_right_item"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:text="0 dB-Hz"
-                                    android:gravity="center"
-                                    android:textColor="@color/black"
-                                    android:textStyle="bold"
-                                    android:textSize="10sp"
-                                    app:layout_constraintHorizontal_weight="1"
-                                    app:layout_constraintStart_toEndOf="@+id/signal_strength_left_item"
-                                    app:layout_constraintEnd_toEndOf="parent"
-                                    app:layout_constraintTop_toTopOf="parent" />
-                            </androidx.constraintlayout.widget.ConstraintLayout>
-
-                            <androidx.cardview.widget.CardView
-                                android:visibility="gone"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_margin="4dp"
-                                app:cardCornerRadius="4dp"
-                                app:cardElevation="1dp">
-
-                                <LinearLayout
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:orientation="vertical"
-                                    android:padding="4dp">
-
-                                    <TextView
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:text="选中卫星详情"
-                                        android:gravity="center"
-                                        android:textStyle="bold"
-                                        android:textSize="10sp"/>
-
-                                    <TextView
-                                        android:id="@+id/selected_satellite_prn"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:text="PRN: --"
-                                        android:textSize="9sp"/>
-
-                                    <TextView
-                                        android:id="@+id/selected_satellite_snr"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:text="信号强度: -- dB-Hz"
-                                        android:textSize="9sp"/>
-
-                                    <TextView
-                                        android:id="@+id/selected_satellite_elevation"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:text="仰角: -- 度"
-                                        android:textSize="9sp"/>
-
-                                    <TextView
-                                        android:id="@+id/selected_satellite_azimuth"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:text="方位角: -- 度"
-                                        android:textSize="9sp"/>
-                                </LinearLayout>
-                            </androidx.cardview.widget.CardView>
-
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:id="@+id/text3"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            app:layout_constraintHorizontal_weight="2"
-                            app:layout_constraintStart_toEndOf="@+id/satellites_info"
-                            app:layout_constraintEnd_toEndOf="parent"
-                            app:layout_constraintTop_toTopOf="parent">
-
-                            <androidx.constraintlayout.widget.ConstraintLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:padding="3dp">
-
-                                <TextView
-                                    android:id="@+id/nav_systems_title"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="导航系统"
-                                    android:gravity="center"
-                                    android:textStyle="bold"
-                                    android:textSize="10sp"
-                                    app:layout_constraintTop_toTopOf="parent"
-                                    app:layout_constraintStart_toStartOf="parent"
-                                    app:layout_constraintEnd_toEndOf="parent"/>
-
-                                <LinearLayout
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:orientation="horizontal"
-                                    app:layout_constraintTop_toBottomOf="@id/nav_systems_title">
-
-                                    <TextView
-                                        android:id="@+id/gps_count"
-                                        android:layout_width="0dp"
-                                        android:layout_height="wrap_content"
-                                        android:layout_weight="1"
-                                        android:gravity="center"
-                                        android:text="GPS: 0"
-                                        android:textSize="9sp" />
-
-                                    <TextView
-                                        android:id="@+id/glonass_count"
-                                        android:layout_width="0dp"
-                                        android:layout_height="wrap_content"
-                                        android:layout_weight="1"
-                                        android:text="GNS: 0"
-                                        android:gravity="center"
-                                        android:textSize="9sp"/>
-
-                                    <TextView
-                                        android:id="@+id/beidou_count"
-                                        android:layout_width="0dp"
-                                        android:layout_height="wrap_content"
-                                        android:layout_weight="1"
-                                        android:text="BD: 0"
-                                        android:gravity="center"
-                                        android:textSize="9sp"/>
-                                </LinearLayout>
-                            </androidx.constraintlayout.widget.ConstraintLayout>
-
-                            <androidx.constraintlayout.widget.ConstraintLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:padding="3dp">
-
-                                <TextView
-                                    android:id="@+id/accuracy_left_item"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:text="位置精度"
-                                    android:gravity="center"
-                                    android:textStyle="bold"
-                                    android:textSize="10sp"
-                                    app:layout_constraintHorizontal_weight="1"
-                                    app:layout_constraintStart_toStartOf="parent"
-                                    app:layout_constraintEnd_toStartOf="@+id/accuracy_right_item"
-                                    app:layout_constraintTop_toTopOf="parent"
-                                    app:layout_constraintHorizontal_chainStyle="spread" />
-
-                                <TextView
-                                    android:id="@+id/accuracy_right_item"
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:text="未知"
-                                    android:gravity="center"
-                                    android:textColor="@color/black"
-                                    android:textStyle="bold"
-                                    android:textSize="10sp"
-                                    app:layout_constraintHorizontal_weight="1"
-                                    app:layout_constraintStart_toEndOf="@+id/accuracy_left_item"
-                                    app:layout_constraintEnd_toEndOf="parent"
-                                    app:layout_constraintTop_toTopOf="parent" />
-                            </androidx.constraintlayout.widget.ConstraintLayout>
-                        </LinearLayout>
-
-                    </androidx.constraintlayout.widget.ConstraintLayout>
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="4dp"
+                    app:contentPadding="16dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:baselineAligned="false"
-                        android:orientation="horizontal">
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/satellites_info"
+                            android:textColor="@color/colorPrimary"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:layout_marginTop="12dp"
+                            android:layout_marginBottom="12dp"
+                            android:background="#F0F0F0" />
+                        
+                        <!-- GNSS Mock 状态显示 -->
+                        <TextView
+                            android:id="@+id/gnss_mock_status"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="状态: 未启动"
+                            android:textColor="@color/colorPrimary"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:gravity="center"/>
+
+                        <!-- 卫星信息内容 -->
+                        <androidx.constraintlayout.widget.ConstraintLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:paddingTop="8dp">
+
+                            <moe.fuqiuluo.portal.android.widget.SatelliteRadarView
+                                android:id="@+id/satellite_rada_view"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:gravity="center"
+                                app:layout_constraintEnd_toStartOf="@+id/satellites_info"
+                                app:layout_constraintHorizontal_chainStyle="spread"
+                                app:layout_constraintHorizontal_weight="1"
+                                app:layout_constraintStart_toStartOf="parent"
+                                app:layout_constraintTop_toTopOf="parent" />
+
+                            <LinearLayout
+                                android:id="@+id/satellites_info"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:gravity="center"
+                                app:layout_constraintHorizontal_weight="2"
+                                app:layout_constraintStart_toEndOf="@+id/satellite_rada_view"
+                                app:layout_constraintEnd_toEndOf="parent"
+                                app:layout_constraintTop_toTopOf="parent">
+
+                                <androidx.constraintlayout.widget.ConstraintLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:padding="3dp">
+
+                                    <TextView
+                                        android:id="@+id/in_view_left_item"
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:text="@string/in_view_left_item"
+                                        android:gravity="center"
+                                        android:textStyle="bold"
+                                        android:textSize="12sp"
+                                        app:layout_constraintHorizontal_weight="1"
+                                        app:layout_constraintStart_toStartOf="parent"
+                                        app:layout_constraintEnd_toStartOf="@+id/in_view_right_item"
+                                        app:layout_constraintTop_toTopOf="parent"
+                                        app:layout_constraintHorizontal_chainStyle="spread" />
+
+                                    <TextView
+                                        android:id="@+id/in_view_right_item"
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:text="@string/zero"
+                                        android:gravity="center"
+                                        android:textColor="@color/black"
+                                        android:textStyle="bold"
+                                        android:textSize="12sp"
+                                        app:layout_constraintHorizontal_weight="1"
+                                        app:layout_constraintStart_toEndOf="@+id/in_view_left_item"
+                                        app:layout_constraintEnd_toEndOf="parent"
+                                        app:layout_constraintTop_toTopOf="parent" />
+                                </androidx.constraintlayout.widget.ConstraintLayout>
+
+                                <androidx.constraintlayout.widget.ConstraintLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:padding="3dp">
+
+                                    <TextView
+                                        android:id="@+id/in_use_left_item"
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:text="@string/in_use_satellite"
+                                        android:gravity="center"
+                                        android:textStyle="bold"
+                                        android:textSize="12sp"
+                                        app:layout_constraintHorizontal_weight="1"
+                                        app:layout_constraintStart_toStartOf="parent"
+                                        app:layout_constraintEnd_toStartOf="@+id/in_use_right_item"
+                                        app:layout_constraintTop_toTopOf="parent"
+                                        app:layout_constraintHorizontal_chainStyle="spread" />
+
+                                    <TextView
+                                        android:id="@+id/in_use_right_item"
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:text="@string/zero"
+                                        android:gravity="center"
+                                        android:textColor="@color/black"
+                                        android:textStyle="bold"
+                                        android:textSize="12sp"
+                                        app:layout_constraintHorizontal_weight="1"
+                                        app:layout_constraintStart_toEndOf="@+id/in_use_left_item"
+                                        app:layout_constraintEnd_toEndOf="parent"
+                                        app:layout_constraintTop_toTopOf="parent" />
+                                </androidx.constraintlayout.widget.ConstraintLayout>
+
+                                <androidx.constraintlayout.widget.ConstraintLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:padding="3dp">
+
+                                    <TextView
+                                        android:id="@+id/signal_strength_left_item"
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:text="平均信号"
+                                        android:gravity="center"
+                                        android:textStyle="bold"
+                                        android:textSize="12sp"
+                                        app:layout_constraintHorizontal_weight="1"
+                                        app:layout_constraintStart_toStartOf="parent"
+                                        app:layout_constraintEnd_toStartOf="@+id/signal_strength_right_item"
+                                        app:layout_constraintTop_toTopOf="parent"
+                                        app:layout_constraintHorizontal_chainStyle="spread" />
+
+                                    <TextView
+                                        android:id="@+id/signal_strength_right_item"
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:text="0 dB"
+                                        android:gravity="center"
+                                        android:textColor="@color/black"
+                                        android:textStyle="bold"
+                                        android:textSize="12sp"
+                                        app:layout_constraintHorizontal_weight="1"
+                                        app:layout_constraintStart_toEndOf="@+id/signal_strength_left_item"
+                                        app:layout_constraintEnd_toEndOf="parent"
+                                        app:layout_constraintTop_toTopOf="parent" />
+                                </androidx.constraintlayout.widget.ConstraintLayout>
+
+                                <androidx.constraintlayout.widget.ConstraintLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:padding="3dp">
+
+                                    <LinearLayout
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        app:layout_constraintTop_toTopOf="parent">
+                                        <TextView
+                                            android:id="@+id/gps_count"
+                                            android:layout_width="0dp"
+                                            android:layout_height="wrap_content"
+                                            android:layout_weight="1"
+                                            android:gravity="center"
+                                            android:text="GPS: 0"
+                                            android:textSize="10sp" />
+                                        <TextView
+                                            android:id="@+id/glonass_count"
+                                            android:layout_width="0dp"
+                                            android:layout_height="wrap_content"
+                                            android:layout_weight="1"
+                                            android:text="GNS: 0"
+                                            android:gravity="center"
+                                            android:textSize="10sp"/>
+                                        <TextView
+                                            android:id="@+id/beidou_count"
+                                            android:layout_width="0dp"
+                                            android:layout_height="wrap_content"
+                                            android:layout_weight="1"
+                                            android:text="BD: 0"
+                                            android:gravity="center"
+                                            android:textSize="10sp"/>
+                                    </LinearLayout>
+                                </androidx.constraintlayout.widget.ConstraintLayout>
+                            </LinearLayout>
+
+                        </androidx.constraintlayout.widget.ConstraintLayout>
 
                         <LinearLayout
-                            android:layout_width="0dp"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_weight="1">
+                            android:layout_marginTop="16dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/switch_gnss_mock"
                                 android:layout_width="wrap_content"
-                                android:layout_height="28dp"
-                                android:textColor="@color/white"
+                                android:layout_height="wrap_content"
                                 android:text="@string/start_mock"
                                 style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-                                android:insetRight="0dp"
-                                android:insetLeft="0dp"
-                                android:insetTop="0dp"
-                                android:insetBottom="0dp"
-                                android:textSize="12sp"
                                 app:icon="@drawable/rounded_play_arrow_24"
-                                app:iconGravity="textStart"
-                                app:iconPadding="0dp"
-                                android:padding="6dp"
-                                app:iconTint="@color/white"
-                                app:cornerRadius="12dp"/>
+                                app:backgroundTint="@color/colorPrimary"
+                                app:cornerRadius="20dp"/>
 
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_weight="1"
-                            android:layout_height="match_parent"
-                            android:gravity="end|center">
+                            <Space
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"/>
 
                             <CheckedTextView
                                 android:id="@+id/random_gnss"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:checkMark="?android:attr/listChoiceIndicatorMultiple"
-                                android:checkMarkTint="@color/portal_mock_off"
+                                android:checkMarkTint="@color/colorPrimary"
                                 android:checked="true"
                                 android:gravity="center"
                                 android:text="随机化卫星信息"
-                                android:textColor="@color/portal_mock_off"
-                                android:textSize="12sp" />
+                                android:textColor="#666666"
+                                android:textSize="14sp" />
                         </LinearLayout>
                     </LinearLayout>
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
+                </com.google.android.material.card.MaterialCardView>
 
-            <!-- 新增的设置选项卡片 - 只包含四个开关 -->
-            <androidx.cardview.widget.CardView
-                android:id="@+id/settings_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardCornerRadius="4dp"
-                android:layout_margin="8dp"
-                app:cardPreventCornerOverlap="false"
-                app:contentPadding="8dp">
-
-                <LinearLayout
+                <!-- 设置选项卡片 -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/settings_card"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/portal_mini_title_color"
-                        android:textAppearance="@style/TextAppearance.AppCompat.Inverse"
-                        android:text="功能设置"/>
+                    android:layout_marginTop="16dp"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="4dp"
+                    app:contentPadding="16dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="4dp">
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="功能设置"
+                            android:textColor="@color/colorPrimary"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:layout_marginTop="12dp"
+                            android:layout_marginBottom="4dp"
+                            android:background="#F0F0F0" />
 
                         <com.google.android.material.switchmaterial.SwitchMaterial
                             android:id="@+id/switch_request_geofence"
@@ -430,14 +337,16 @@
                             android:layout_height="wrap_content"
                             android:text="允许地理围栏请求"
                             android:checked="true"
-                            android:padding="8dp"/>
+                            android:paddingTop="8dp"
+                            android:paddingBottom="8dp"/>
 
                         <com.google.android.material.switchmaterial.SwitchMaterial
                             android:id="@+id/switch_get_from_location"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:checked="true"
-                            android:padding="8dp"
+                            android:paddingTop="8dp"
+                            android:paddingBottom="8dp"
                             android:text="允许位置获取" />
 
                         <com.google.android.material.switchmaterial.SwitchMaterial
@@ -446,7 +355,8 @@
                             android:layout_height="wrap_content"
                             android:text="启用AGPS模块"
                             android:checked="false"
-                            android:padding="8dp"/>
+                            android:paddingTop="8dp"
+                            android:paddingBottom="8dp"/>
 
                         <com.google.android.material.switchmaterial.SwitchMaterial
                             android:id="@+id/switch_enable_nmea"
@@ -454,10 +364,12 @@
                             android:layout_height="wrap_content"
                             android:text="启用NMEA模块"
                             android:checked="false"
-                            android:padding="8dp"/>
+                            android:paddingTop="8dp"
+                            android:paddingBottom="8dp"/>
                     </LinearLayout>
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-        </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+            </LinearLayout>
+        </RelativeLayout>
     </androidx.core.widget.NestedScrollView>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

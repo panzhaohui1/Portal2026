@@ -9,7 +9,7 @@
     <string name="action_search">搜索</string>
     <string name="action_info">信息</string>
 
-    <string name="menu_home">Home</string>
+    <string name="menu_select_location">Select Location</string>
     <string name="menu_mock">Location Mock</string>
     <string name="menu_route_mock">Route Mock</string>
     <string name="menu_gnss_mock">Gnss Mock</string>
