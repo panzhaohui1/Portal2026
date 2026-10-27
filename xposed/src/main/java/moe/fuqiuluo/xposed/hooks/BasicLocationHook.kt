@@ -2,7 +2,6 @@ package moe.fuqiuluo.xposed.hooks
 
 import android.location.Location
 import android.location.LocationManager
-import android.os.Build
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
@@ -10,6 +9,7 @@ import moe.fuqiuluo.xposed.BaseLocationHook
 import moe.fuqiuluo.xposed.hooks.blindhook.BlindHookLocation
 import moe.fuqiuluo.xposed.utils.FakeLoc
 import moe.fuqiuluo.xposed.utils.Logger
+import moe.fuqiuluo.xposed.utils.LocationSanitizationGuard
 import moe.fuqiuluo.xposed.utils.hookAllMethodsAfter
 import moe.fuqiuluo.xposed.utils.hookAllMethodsBefore
 import moe.fuqiuluo.xposed.utils.toClass
@@ -42,8 +42,8 @@ object BasicLocationHook: BaseLocationHook() {
             cLocationResult.hookAllMethodsAfter("asList") {
                 if (!FakeLoc.enable) return@hookAllMethodsAfter
 
-                val locations = result as List<*>
-                result = locations.map { injectLocation(it as Location) }
+                val locations = result as? List<*> ?: emptyList<Any?>()
+                result = locations.mapNotNull { it as? Location }.map { injectLocation(it) }
             }
 
             cLocationResult.hookAllMethodsBefore("writeToParcel") {
@@ -53,60 +53,43 @@ object BasicLocationHook: BaseLocationHook() {
                 val mLocationsField = XposedHelpers.findFieldIfExists(locationResult.javaClass, "mLocations")
                 if (mLocationsField == null) {
                     Logger.error("Failed to find mLocations in LocationResult")
+                    result = null
                     return@hookAllMethodsBefore
                 }
-                mLocationsField.isAccessible = true
-                val mLocations = mLocationsField.get(locationResult) as ArrayList<*>
-
-                val originLocation = mLocations.firstOrNull() as? Location
-                    ?: Location(LocationManager.GPS_PROVIDER)
-
-                val location = Location(originLocation.provider)
-
-                val jitterLat = FakeLoc.jitterLocation()
-                location.latitude = jitterLat.first
-                location.longitude = jitterLat.second
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    location.isMock = false
+                if (kotlin.runCatching { mLocationsField.isAccessible = true }.isFailure) {
+                    result = null
+                    return@hookAllMethodsBefore
                 }
-                location.altitude = FakeLoc.altitude
-                location.speed = originLocation.speed
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    location.speedAccuracyMetersPerSecond = 0F
+                val mLocations = kotlin.runCatching {
+                    mLocationsField.get(locationResult) as? List<*> ?: emptyList<Any?>()
+                }.getOrElse {
+                    result = null
+                    Logger.error("Failed to read LocationResult locations", it)
+                    return@hookAllMethodsBefore
                 }
 
-                location.time = originLocation.time
-                location.accuracy = originLocation.accuracy
-                var modBearing = FakeLoc.bearing % 360.0 + 0.0
-                if (modBearing < 0) {
-                    modBearing += 360.0
-                }
-                if (location.hasBearing()) {
-                    location.bearing = modBearing.toFloat()
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    location.bearingAccuracyDegrees = modBearing.toFloat()
-                }
-                location.elapsedRealtimeNanos = originLocation.elapsedRealtimeNanos
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    location.elapsedRealtimeUncertaintyNanos = originLocation.elapsedRealtimeUncertaintyNanos
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    location.verticalAccuracyMeters = originLocation.verticalAccuracyMeters
-                }
-                originLocation.extras?.let {
-                    location.extras = it
-                }
+                val sanitizedLocations = mLocations.mapNotNull { it as? Location }
+                    .map { injectLocation(it) }
+                    .ifEmpty { listOf(injectLocation(Location(LocationManager.GPS_PROVIDER))) }
 
-                mLocationsField.set(locationResult, arrayListOf(location))
+                kotlin.runCatching {
+                    mLocationsField.set(locationResult, ArrayList(sanitizedLocations))
+                }.onFailure {
+                    result = null
+                    Logger.error("Failed to write sanitized LocationResult", it)
+                }
             }
         }.onFailure {
            Logger.error("Failed to hook LocationResult", it)
         }
 
         Location::class.java.hookAllMethodsBefore("set") {
-            if (!FakeLoc.enable) return@hookAllMethodsBefore
-            args[0] = injectLocation(args[0] as Location)
+            if (!FakeLoc.enable || LocationSanitizationGuard.isActive()) return@hookAllMethodsBefore
+            val source = args.getOrNull(0) as? Location ?: run {
+                result = null
+                return@hookAllMethodsBefore
+            }
+            args[0] = injectLocation(source)
         }
 //        if (FakeLocationConfig.DEBUG) {
 //            // Track the invocation of AutoNavi map system services

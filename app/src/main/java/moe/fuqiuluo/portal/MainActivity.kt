@@ -8,7 +8,6 @@ import android.Manifest.permission.ACCESS_WIFI_STATE
 import android.Manifest.permission.CHANGE_WIFI_STATE
 import android.Manifest.permission.FOREGROUND_SERVICE
 import android.Manifest.permission.INTERNET
-import android.Manifest.permission.READ_PHONE_STATE
 import android.Manifest.permission.VIBRATE
 import android.annotation.SuppressLint
 import android.app.Notification
@@ -19,10 +18,8 @@ import android.content.res.ColorStateList
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.location.LocationManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
@@ -69,11 +66,9 @@ import com.baidu.mapapi.search.geocode.ReverseGeoCodeResult
 import com.baidu.mapapi.search.sug.SuggestionSearch
 import com.baidu.mapapi.search.sug.SuggestionSearchOption
 import com.google.android.material.navigation.NavigationView
-import com.tencent.bugly.crashreport.CrashReport
 import kotlinx.coroutines.launch
 import moe.fuqiuluo.portal.android.permission.RequestPermissions
 import moe.fuqiuluo.portal.android.root.ShellUtils
-import moe.fuqiuluo.portal.android.window.OverlayUtils
 import moe.fuqiuluo.portal.bdmap.Poi
 import moe.fuqiuluo.portal.bdmap.toPoi
 import moe.fuqiuluo.portal.databinding.ActivityMainBinding
@@ -102,7 +97,6 @@ class MainActivity : AppCompatActivity() {
             ACCESS_LOCATION_EXTRA_COMMANDS,
             ACCESS_WIFI_STATE,
             CHANGE_WIFI_STATE,
-            READ_PHONE_STATE,
             INTERNET,
             ACCESS_NETWORK_STATE,
             VIBRATE
@@ -122,9 +116,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        if (denied.isEmpty()) {
-            requireFloatWindows()
-        }
     }
 
     private fun showPermissionDeniedToast(permission: String) {
@@ -132,7 +123,6 @@ class MainActivity : AppCompatActivity() {
             ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION -> "Portal需要完整位置权限"
             ACCESS_LOCATION_EXTRA_COMMANDS -> "Portal需要额外位置命令权限和系统交互"
             CHANGE_WIFI_STATE, ACCESS_WIFI_STATE -> "Portal需要访问Wi-Fi状态"
-            READ_PHONE_STATE -> "Portal需要读取设备信息"
             ACCESS_NETWORK_STATE, INTERNET -> "Portal需要访问网络"
             VIBRATE -> "Portal需要访问传感器"
             else -> "需要 $permission 才能运行"
@@ -159,7 +149,6 @@ class MainActivity : AppCompatActivity() {
             window.statusBarColor = ContextCompat.getColor(this, R.color.theme_appbar_color)
         }
 
-        CrashReport.setUserSceneTag(this, 261771)
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.N) {
             window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
         }
@@ -228,24 +217,32 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        baiduMapViewModel.mGeoCoder = GeoCoder.newInstance()
-        baiduMapViewModel.mGeoCoder?.setOnGetGeoCodeResultListener(object: OnGetGeoCoderResultListener {
-            override fun onGetGeoCodeResult(geoCodeResult: GeoCodeResult) {}
+        mockServiceViewModel.initRocker(this)
+    }
 
-            override fun onGetReverseGeoCodeResult(reverseGeoCodeResult: ReverseGeoCodeResult) {
-                if (reverseGeoCodeResult.error != SearchResult.ERRORNO.NO_ERROR) {
-                    Log.e("MainActivity", "Reverse GeoCode error: ${reverseGeoCodeResult.error}")
-                } else with(baiduMapViewModel) {
-                    markName = reverseGeoCodeResult.address.toString()
+    /** Initialize online search helpers only after the user enables the online map. */
+    fun initializeOnlineMapTools(): Boolean {
+        if (!Portal.isOnlineMapInitialized()) return false
+        if (baiduMapViewModel.mGeoCoder != null) return true
+        return runCatching {
+            val geoCoder = GeoCoder.newInstance()
+            geoCoder.setOnGetGeoCodeResultListener(object : OnGetGeoCoderResultListener {
+                override fun onGetGeoCodeResult(geoCodeResult: GeoCodeResult) {}
 
-                    if (showDetailView) {
-                        showDetailInfo(reverseGeoCodeResult.location.wgs84, reverseGeoCodeResult.location)
+                override fun onGetReverseGeoCodeResult(reverseGeoCodeResult: ReverseGeoCodeResult) {
+                    if (reverseGeoCodeResult.error != SearchResult.ERRORNO.NO_ERROR) {
+                        Log.e("MainActivity", "Reverse GeoCode error: ${reverseGeoCodeResult.error}")
+                    } else with(baiduMapViewModel) {
+                        markName = reverseGeoCodeResult.address.toString()
+
+                        if (showDetailView && isExists) {
+                            showDetailInfo(reverseGeoCodeResult.location.wgs84, reverseGeoCodeResult.location)
+                        }
                     }
                 }
-            }
-        })
-
-        mockServiceViewModel.initRocker(this)
+            })
+            baiduMapViewModel.mGeoCoder = geoCoder
+        }.isSuccess
     }
 
     private fun initNotification() {
@@ -267,7 +264,7 @@ class MainActivity : AppCompatActivity() {
                     this@MainActivity, 0, nfIntent, PendingIntent.FLAG_IMMUTABLE
                 ))
                     .setContentTitle("Portal后台定位服务")
-                    .setSmallIcon(R.mipmap.ic_launcher)
+                    .setSmallIcon(R.drawable.baseline_location_on_24)
                     .setContentText("正在后台定位")
                     .setWhen(System.currentTimeMillis())
 
@@ -276,28 +273,6 @@ class MainActivity : AppCompatActivity() {
                 it.defaults = Notification.DEFAULT_SOUND
             }
         }
-    }
-
-    private fun requireFloatWindows(): Boolean {
-        fun requestSettingCanDrawOverlays() {
-            kotlin.runCatching {
-                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-                intent.setData(Uri.parse("package:$packageName"))
-                startActivity(intent)
-            }.onFailure {
-                Log.e("MainActivity", "requestSettingCanDrawOverlays: ", it) // boom in Redmi K60
-                Toast.makeText(this, "跳转失败，请手动去设置授权", Toast.LENGTH_LONG).show()
-            }
-            finish()
-        }
-
-        if (!OverlayUtils.hasOverlayPermissions(this)) {
-            Toast.makeText(this, "快给我悬浮窗权限", Toast.LENGTH_LONG).show()
-            requestSettingCanDrawOverlays()
-            return false
-        }
-
-        return true
     }
 
     override fun onRequestPermissionsResult(
@@ -321,7 +296,6 @@ class MainActivity : AppCompatActivity() {
                     ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION -> "Portal需要完整位置权限"
                     ACCESS_LOCATION_EXTRA_COMMANDS -> "Portal需要额外位置命令权限和系统交互"
                     CHANGE_WIFI_STATE, ACCESS_WIFI_STATE -> "Portal需要访问Wi-Fi状态"
-                    READ_PHONE_STATE -> "Portal需要读取设备信息"
                     ACCESS_NETWORK_STATE, INTERNET -> "Portal需要访问网络"
                     VIBRATE -> "Portal需要访问传感器"
                     else -> "需要 $permission 才能运行"
@@ -370,38 +344,47 @@ class MainActivity : AppCompatActivity() {
                 searchItem.collapseActionView()
             }
         }
-        if (mSuggestionSearch == null) {
-            mSuggestionSearch = SuggestionSearch.newInstance()
-            mSuggestionSearch?.setOnGetSuggestionResultListener { suggestionResult ->
-                if (suggestionResult == null || suggestionResult.allSuggestions == null) {
-                    Toast.makeText(this@MainActivity, "未搜索到相关位置", Toast.LENGTH_SHORT).show()
-                } else {
-                    val data = suggestionResult.toPoi(
-                        baiduMapViewModel.currentLocation
-                    ).map { it.toMap() } // wgs84
+        fun ensureSuggestionSearch(): Boolean {
+            if (!Portal.isOnlineMapInitialized()) return false
+            if (mSuggestionSearch != null) return true
+            return runCatching {
+                val search = SuggestionSearch.newInstance()
+                search.setOnGetSuggestionResultListener { suggestionResult ->
+                    if (suggestionResult == null || suggestionResult.allSuggestions == null) {
+                        Toast.makeText(this@MainActivity, "未搜索到相关位置", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val data = suggestionResult.toPoi(
+                            baiduMapViewModel.currentLocation
+                        ).map { it.toMap() } // wgs84
 
-                    val simAdapt = SimpleAdapter(
-                        this@MainActivity, data,
-                        R.layout.layout_search_poi_item,
-                        arrayOf(Poi.KEY_NAME, Poi.KEY_ADDRESS, Poi.KEY_LONGITUDE_RAW, Poi.KEY_LATITUDE_RAW, Poi.KEY_TAG),
-                        intArrayOf(R.id.poi_name, R.id.poi_address, R.id.poi_longitude, R.id.poi_latitude, R.id.poi_tag)
-                    )
-                    mSearchList.setAdapter(simAdapt)
-                    binding.appBarMain.searchLinear.visibility = View.VISIBLE
+                        val simAdapt = SimpleAdapter(
+                            this@MainActivity, data,
+                            R.layout.layout_search_poi_item,
+                            arrayOf(Poi.KEY_NAME, Poi.KEY_ADDRESS, Poi.KEY_LONGITUDE_RAW, Poi.KEY_LATITUDE_RAW, Poi.KEY_TAG),
+                            intArrayOf(R.id.poi_name, R.id.poi_address, R.id.poi_longitude, R.id.poi_latitude, R.id.poi_tag)
+                        )
+                        mSearchList.setAdapter(simAdapt)
+                        binding.appBarMain.searchLinear.visibility = View.VISIBLE
+                    }
                 }
-            }
+                mSuggestionSearch = search
+            }.isSuccess
         }
 
         searchView.setOnQueryTextListener(object: SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
                 if (query.isNullOrBlank()) return false
+                if (!ensureSuggestionSearch()) {
+                    Toast.makeText(this@MainActivity, "请先启用在线地图", Toast.LENGTH_SHORT).show()
+                    return false
+                }
                 try {
                     mSuggestionSearch!!.requestSuggestion(SuggestionSearchOption()
                         .keyword(query)
                         .city(mCityString)
                     )
 
-                    baiduMapViewModel.baiduMap.clear()
+                    if (baiduMapViewModel.isExists) baiduMapViewModel.baiduMap.clear()
                     binding.appBarMain.searchLinear.visibility = View.INVISIBLE
                 } catch (e: Exception) {
                     Toast.makeText(this@MainActivity, "搜索出错", Toast.LENGTH_SHORT).show()
@@ -412,6 +395,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onQueryTextChange(newText: String?): Boolean {
                 if (!newText.isNullOrBlank()) {
+                    if (!ensureSuggestionSearch()) return true
                     try {
                         mSuggestionSearch!!.requestSuggestion(
                             SuggestionSearchOption()
@@ -432,7 +416,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun markMap() = with(baiduMapViewModel) {
-        if (markedLoc == null) return
+        if (markedLoc == null || !isExists) return
 
         if (perspectiveState == MyLocationConfiguration.LocationMode.FOLLOWING) {
             perspectiveState = MyLocationConfiguration.LocationMode.NORMAL
@@ -472,6 +456,8 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
 
         mSuggestionSearch?.destroy()
+        baiduMapViewModel.mGeoCoder?.destroy()
+        baiduMapViewModel.mGeoCoder = null
     }
 
     companion object {

@@ -237,7 +237,10 @@ class SettingsFragment : Fragment() {
                     }
                 } else {
                     if(!MockServiceHelper.stopWifiMock(locationManager!!)) {
-                        showToast("启用WLAN扫描失败: 无法连接到系统服务")
+                        showToast(
+                            if (MockServiceHelper.isMockStart(locationManager!!)) "固定点运行期间始终隐藏 WLAN 信息，停止后再更改"
+                            else "启用WLAN扫描失败: 无法连接到系统服务"
+                        )
                     }
                 }
             }

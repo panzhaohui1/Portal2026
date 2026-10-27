@@ -33,11 +33,8 @@ object LocationNMEAHook: BaseLocationHook() {
         }
 
         XposedBridge.hookAllMethods(classILocationManager, "addGnssMeasurementsListener", doNothingMethod)
-        XposedBridge.hookAllMethods(classILocationManager, "removeGnssMeasurementsListener", doNothingMethod)
         XposedBridge.hookAllMethods(classILocationManager, "addGnssNavigationMessageListener", doNothingMethod)
-        XposedBridge.hookAllMethods(classILocationManager, "removeGnssNavigationMessageListener", doNothingMethod)
         XposedBridge.hookAllMethods(classILocationManager, "addGnssAntennaInfoListener", doNothingMethod)
-        XposedBridge.hookAllMethods(classILocationManager, "removeGnssAntennaInfoListener", doNothingMethod)
     }
 
     private fun hookGnssNmea(classILocationManager: Class<*>) {
@@ -61,6 +58,13 @@ object LocationNMEAHook: BaseLocationHook() {
                         return@onceHookMethodBefore
                     }
 
+                    if (!FakeLoc.enable) return@onceHookMethodBefore
+                    // Fixed mode drops NMEA entirely, matching GnssManagerService's hook:
+                    // even rewritten sentences keep real HDOP, altitude and satellite data.
+                    if (FakeLoc.fixedLocationMode) {
+                        result = null
+                        return@onceHookMethodBefore
+                    }
                     val nmea = args[1] as? String ?: return@onceHookMethodBefore
                     args[1] = injectNMEA(nmea) ?: nmea
                 }

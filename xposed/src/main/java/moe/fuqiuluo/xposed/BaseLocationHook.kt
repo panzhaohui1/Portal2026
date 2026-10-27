@@ -4,119 +4,77 @@ import android.location.Location
 import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import de.robv.android.xposed.XposedHelpers
 import moe.fuqiuluo.xposed.utils.FakeLoc
+import moe.fuqiuluo.xposed.utils.LocationSanitizationGuard
 import moe.fuqiuluo.xposed.utils.Logger
 import moe.microbios.nmea.NMEA
 import moe.microbios.nmea.NmeaValue
 import kotlin.random.Random
 
 abstract class BaseLocationHook: BaseDivineService() {
+    /**
+     * Replace a location with a value derived only from the configured state.
+     * No source timestamp, elapsed time, extras or cached source Location is
+     * copied across this boundary.
+     */
+    @Suppress("UNUSED_PARAMETER")
     fun injectLocation(originLocation: Location, realLocation: Boolean = true): Location {
-        if (realLocation) {
-            if (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    originLocation.provider == LocationManager.GPS_PROVIDER && originLocation.isComplete
-                } else {
-                    originLocation.provider == LocationManager.GPS_PROVIDER
-                }
-            ) {
-                FakeLoc.lastLocation = originLocation
+        if (LocationSanitizationGuard.isActive()) return buildEmergencyLocation()
+        if (!FakeLoc.enable) return originLocation
+        return LocationSanitizationGuard.withSanitization {
+            runCatching {
+                buildSanitizedLocation(originLocation)
+            }.onFailure {
+                // Never fall back to the original location while active.
+                Logger.error("build sanitized location failed", it)
+            }.getOrElse {
+                buildEmergencyLocation()
             }
+        }
+    }
+
+    private fun buildSanitizedLocation(originLocation: Location): Location {
+        val coordinates = FakeLoc.coordinateSnapshot()
+        val target = if (FakeLoc.fixedLocationMode) {
+            Pair(
+                coordinates.latitude.takeIf { it.isFinite() && it in -90.0..90.0 } ?: 0.0,
+                coordinates.longitude.takeIf { it.isFinite() && it in -180.0..180.0 } ?: 0.0,
+            )
         } else {
-            originLocation.altitude = FakeLoc.altitude
+            FakeLoc.jitterLocation(coordinates.latitude, coordinates.longitude)
         }
+        val accuracy = safeAccuracy()
+        val altitude = safeAltitude()
+        val speed = safeSpeed()
+        val location = Location(safeProvider(originLocation))
 
-        if (!FakeLoc.enable)
-            return originLocation
+        location.latitude = target.first
+        location.longitude = target.second
+        location.altitude = altitude
+        location.accuracy = accuracy
+        location.speed = speed
+        location.time = System.currentTimeMillis()
+        // A stationary receiver reports no heading; a bearing on a zero-speed fix looks synthetic.
+        if (!FakeLoc.fixedLocationMode) location.bearing = normalizedBearing()
+        location.extras = Bundle()
 
-        if (originLocation.extras?.getBoolean("portal.processed") == true) {
-            return originLocation
-        }
-
-        if (originLocation.latitude == FakeLoc.latitude && originLocation.longitude == FakeLoc.longitude) {
-            // Already processed
-            return originLocation
-        }
-
-        if (FakeLoc.disableNetworkLocation && originLocation.provider == LocationManager.NETWORK_PROVIDER) {
-            originLocation.provider = LocationManager.GPS_PROVIDER
-        }
-
-        val location = Location(originLocation.provider ?: LocationManager.GPS_PROVIDER)
-        location.accuracy = if (FakeLoc.accuracy != 0.0f) FakeLoc.accuracy else originLocation.accuracy
-        val jitterLat = FakeLoc.jitterLocation()
-        location.latitude = jitterLat.first
-        location.longitude = jitterLat.second
-        location.altitude = FakeLoc.altitude
-        val speedAmp = Random.nextDouble(-FakeLoc.speedAmplitude, FakeLoc.speedAmplitude)
-        location.speed = (originLocation.speed + speedAmp).toFloat()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && originLocation.hasSpeedAccuracy()) {
-            location.speedAccuracyMetersPerSecond = (FakeLoc.speed + speedAmp).toFloat()
-        }
-
-        if (location.altitude == 0.0) {
-            location.altitude = 80.0
-        }
-
-        location.time = originLocation.time
-
-        // final addition of zero is to remove -0 results. while these are technically within the
-        // range [0, 360) according to IEEE semantics, this eliminates possible user confusion.
-        var modBearing = FakeLoc.bearing % 360.0 + 0.0
-        if (modBearing < 0) {
-            modBearing += 360.0
-        }
-        location.bearing = modBearing.toFloat()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            location.bearingAccuracyDegrees = 3.0f  // 方位角精度，单位：度
+            location.speedAccuracyMetersPerSecond = if (FakeLoc.fixedLocationMode) 0.5f else accuracy
+            if (!FakeLoc.fixedLocationMode) location.bearingAccuracyDegrees = 3.0f
+            location.verticalAccuracyMeters = accuracy
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (location.hasBearingAccuracy() && location.bearingAccuracyDegrees == 0.0f) {
-                location.bearingAccuracyDegrees = 1.0f
-            }
-        }
-
-        if (location.speed == 0.0f) {
-            location.speed = 1.2f
-        }
-
-        location.elapsedRealtimeNanos = originLocation.elapsedRealtimeNanos
+        location.elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos().coerceAtLeast(1L)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            location.elapsedRealtimeUncertaintyNanos = originLocation.elapsedRealtimeUncertaintyNanos
+            location.elapsedRealtimeUncertaintyNanos = 0.0
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            location.verticalAccuracyMeters = originLocation.verticalAccuracyMeters
-        }
-        originLocation.extras?.let {
-            location.extras = it
-        }
-        if (location.extras == null) {
-            location.extras = Bundle()
-        }
-        location.extras?.putDouble("latlon", location.latitude + location.longitude)
-        location.extras?.putInt("satellites", Random.nextInt(8, 45))
-        location.extras?.putInt("maxCn0", Random.nextInt(30, 50))
-        location.extras?.putInt("meanCn0", Random.nextInt(20, 30))
-        location.extras?.putBoolean("portal.processed", true)
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            if (originLocation.hasMslAltitude()) {
-                location.mslAltitudeMeters = FakeLoc.altitude
-            }
-            if (originLocation.hasVerticalAccuracy()) {
-                location.mslAltitudeAccuracyMeters = FakeLoc.altitude.toFloat()
-            }
+            location.mslAltitudeMeters = altitude
+            location.mslAltitudeAccuracyMeters = accuracy
         }
-        if (FakeLoc.hideMock) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                location.isMock = false
-            }
-        } else {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                location.isMock = true
-            }
-            location.extras?.putBoolean("portal.enable", true)
-            location.extras?.putBoolean("is_mock", true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            location.isMock = !FakeLoc.hideMock
         }
 
         kotlin.runCatching {
@@ -125,11 +83,65 @@ abstract class BaseLocationHook: BaseDivineService() {
             Logger.error("makeComplete failed", it)
         }
 
+        // This cache is safe to share because it is the sanitized value, not
+        // the source Location. IPC sync deliberately does not serialize it.
+        FakeLoc.lastLocation = Location(location)
         if (FakeLoc.enableDebugLog) {
-            Logger.debug("injectLocation success! $location")
+            Logger.debug("injectLocation success")
         }
-
         return location
+    }
+
+    private fun buildEmergencyLocation(): Location {
+        val coordinates = FakeLoc.coordinateSnapshot()
+        val location = Location(LocationManager.GPS_PROVIDER)
+        location.latitude = coordinates.latitude.takeIf { it.isFinite() && it in -90.0..90.0 } ?: 0.0
+        location.longitude = coordinates.longitude.takeIf { it.isFinite() && it in -180.0..180.0 } ?: 0.0
+        location.altitude = safeAltitude()
+        location.accuracy = safeAccuracy()
+        location.speed = if (FakeLoc.fixedLocationMode) 0.0f else safeSpeed()
+        location.bearing = normalizedBearing()
+        location.time = System.currentTimeMillis()
+        location.elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos().coerceAtLeast(1L)
+        location.extras = Bundle()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            location.isMock = !FakeLoc.hideMock
+        }
+        FakeLoc.lastLocation = Location(location)
+        return location
+    }
+
+    private fun safeProvider(originLocation: Location): String {
+        val sourceProvider = originLocation.provider?.takeIf { it.isNotBlank() }
+        return if (FakeLoc.disableNetworkLocation && sourceProvider == LocationManager.NETWORK_PROVIDER) {
+            LocationManager.GPS_PROVIDER
+        } else {
+            sourceProvider ?: LocationManager.GPS_PROVIDER
+        }
+    }
+
+    private fun safeAccuracy(): Float {
+        return FakeLoc.accuracy.takeIf { it.isFinite() && it >= 0.0f } ?: 0.0f
+    }
+
+    private fun safeAltitude(): Double {
+        return FakeLoc.altitude.takeIf { it.isFinite() } ?: 0.0
+    }
+
+    private fun safeSpeed(): Float {
+        val configuredSpeed = FakeLoc.speed.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
+        val configuredAmplitude = FakeLoc.speedAmplitude.takeIf { it.isFinite() && it > 0.0 } ?: 0.0
+        val speed = if (configuredAmplitude == 0.0) {
+            configuredSpeed
+        } else {
+            configuredSpeed + Random.nextDouble(-configuredAmplitude, configuredAmplitude)
+        }
+        return speed.coerceAtLeast(0.0).toFloat()
+    }
+
+    private fun normalizedBearing(): Float {
+        val bearing = FakeLoc.bearing.takeIf { it.isFinite() } ?: 0.0
+        return (bearing % 360.0).let { if (it < 0.0) it + 360.0 else it }.toFloat()
     }
 
     fun injectNMEA(nmeaStr: String): String? {
@@ -235,7 +247,7 @@ abstract class BaseLocationHook: BaseDivineService() {
                 }
             }
         }.onFailure {
-            Logger.error("NMEA parse failed: ${it.message}, source = $nmeaStr")
+            Logger.error("NMEA parse failed")
             return null
         }
         return null

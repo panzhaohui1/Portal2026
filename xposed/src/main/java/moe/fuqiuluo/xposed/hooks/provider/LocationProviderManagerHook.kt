@@ -19,75 +19,80 @@ import moe.fuqiuluo.xposed.utils.hook
 import moe.fuqiuluo.xposed.utils.onceHook
 import moe.fuqiuluo.xposed.utils.onceHookAllMethod
 import moe.fuqiuluo.xposed.utils.onceHookMethodBefore
+import java.lang.reflect.Method
 import java.util.Collections
 import kotlin.random.Random
 
 object LocationProviderManagerHook {
+    @Volatile
+    private var systemReportHookReady = false
+    private var installedSystemReportMethod: Method? = null
+    private var installedGpsCurrentMethod: Method? = null
+    private var installedGpsRegistrationMethod: Method? = null
+
+    fun isSystemReportHookReady(): Boolean = systemReportHookReady
+
     private val hookOnFetchLocationResult = beforeHook {
-        if (args.isEmpty() || args.isEmpty()) return@beforeHook
+        if (args.isEmpty()) return@beforeHook
         if (!FakeLoc.enable) return@beforeHook
 
         if (FakeLoc.enableDebugLog) {
             Logger.debug("${method}: injected!")
         }
 
-        val locationResult = args[0]
+        val locationResult = args[0] ?: run {
+            result = null
+            return@beforeHook
+        }
         val mLocationsField = XposedHelpers.findFieldIfExists(locationResult.javaClass, "mLocations")
         if (mLocationsField == null) {
             Logger.error("Failed to find mLocations in LocationResult")
+            result = null
             return@beforeHook
         }
-        mLocationsField.isAccessible = true
-        val mLocations = mLocationsField.get(locationResult) as ArrayList<*>
-
-        val originLocation = mLocations.firstOrNull() as? Location
-            ?: Location(LocationManager.GPS_PROVIDER)
-        val location = Location(originLocation.provider)
-
-        val jitterLat = FakeLoc.jitterLocation()
-        location.latitude = jitterLat.first
-        location.longitude = jitterLat.second
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            location.isMock = false
+        if (kotlin.runCatching { mLocationsField.isAccessible = true }.isFailure) {
+            result = null
+            return@beforeHook
         }
-        location.altitude = FakeLoc.altitude
-        location.speed = originLocation.speed
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            location.speedAccuracyMetersPerSecond = 0F
+        val mLocations = kotlin.runCatching {
+            mLocationsField.get(locationResult) as? List<*> ?: emptyList<Any?>()
+        }.getOrElse {
+            result = null
+            Logger.error("Failed to read LocationResult locations", it)
+            return@beforeHook
         }
 
-        location.time = originLocation.time
-        location.accuracy = originLocation.accuracy
-        var modBearing = FakeLoc.bearing % 360.0 + 0.0
-        if (modBearing < 0) {
-            modBearing += 360.0
+        val sanitizedLocations = runCatching {
+            mLocations.mapNotNull { it as? Location }.map { injectLocation(it) }
+        }.getOrElse {
+            result = null
+            Logger.error("Failed to sanitize LocationResult")
+            return@beforeHook
         }
-        location.bearing = modBearing.toFloat()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && originLocation.hasBearingAccuracy()) {
-            location.bearingAccuracyDegrees = modBearing.toFloat()
-        }
-        location.elapsedRealtimeNanos = originLocation.elapsedRealtimeNanos
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            location.elapsedRealtimeUncertaintyNanos = originLocation.elapsedRealtimeUncertaintyNanos
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            location.verticalAccuracyMeters = originLocation.verticalAccuracyMeters
-        }
-        originLocation.extras?.let {
-            location.extras = it
+        if (sanitizedLocations.isEmpty()) {
+            result = null
+            return@beforeHook
         }
 
-        mLocationsField.set(locationResult, arrayListOf(location))
+        kotlin.runCatching {
+            mLocationsField.set(locationResult, ArrayList(sanitizedLocations))
+        }.onFailure {
+            result = null
+            Logger.error("Failed to write sanitized LocationResult", it)
+        }
     }
 
+    @Synchronized
     operator fun invoke(classLoader: ClassLoader) {
-        hookLocationProviderManager(classLoader)
+        systemReportHookReady = false
+        val managerHookReady = hookLocationProviderManager(classLoader)
         hookDelegateLocationProvider(classLoader)
         hookPassiveLocationProvider(classLoader)
         hookProxyLocationProvider(classLoader)
         hookAbstractLocationProvider(classLoader)
         hookOtherProvider(classLoader)
         hookGeofenceProvider(classLoader)
+        systemReportHookReady = managerHookReady
     }
 
     private fun hookAbstractLocationProvider(classLoader: ClassLoader) {
@@ -96,7 +101,7 @@ object LocationProviderManagerHook {
                 ?: return@run
             val cLocationResult = XposedHelpers.findClassIfExists("android.location.LocationResult", classLoader)
                 ?: return@run
-            val mReportLocation = XposedHelpers.findMethodExactIfExists(cAbstractLocationProvider.javaClass, "reportLocation", cLocationResult)
+            val mReportLocation = XposedHelpers.findMethodExactIfExists(cAbstractLocationProvider, "reportLocation", cLocationResult)
                 ?: return@run
 
             mReportLocation.onceHook(hookOnFetchLocationResult)
@@ -162,24 +167,38 @@ object LocationProviderManagerHook {
         )
     }
 
-    private fun hookLocationProviderManager(classLoader: ClassLoader) {
+    private fun hookLocationProviderManager(classLoader: ClassLoader): Boolean {
         val cLocationProviderManager = XposedHelpers.findClassIfExists("com.android.server.location.provider.LocationProviderManager", classLoader)
-            ?: return
+            ?: return false
+        val requestClass = XposedHelpers.findClassIfExists("android.location.LocationRequest", classLoader)
+        val identityClass = XposedHelpers.findClassIfExists("android.location.util.identity.CallerIdentity", classLoader)
+        val callbackClass = XposedHelpers.findClassIfExists("android.location.ILocationCallback", classLoader)
+        val listenerClass = XposedHelpers.findClassIfExists("android.location.ILocationListener", classLoader)
+        val expectedCurrent = if (requestClass != null && identityClass != null && callbackClass != null) {
+            XposedHelpers.findMethodExactIfExists(
+                cLocationProviderManager, "getCurrentLocation", requestClass, identityClass,
+                Int::class.javaPrimitiveType, callbackClass,
+            )
+        } else null
+        val expectedRegistration = if (requestClass != null && identityClass != null && listenerClass != null) {
+            XposedHelpers.findMethodExactIfExists(
+                cLocationProviderManager, "registerLocationRequest", requestClass, identityClass,
+                Int::class.javaPrimitiveType, listenerClass,
+            )
+        } else null
         BlindHookLocation(cLocationProviderManager, classLoader)
 
         XposedBridge.hookAllMethods(cLocationProviderManager, "setRealProvider", object: XC_MethodHook() {
             override fun beforeHookedMethod(param: MethodHookParam) {
-                val locationProvider = param.args[0]
                 if (FakeLoc.enableDebugLog) {
-                    Logger.debug("setRealProvider: $locationProvider")
+                    Logger.debug("setRealProvider called")
                 }
             }
         })
         XposedBridge.hookAllMethods(cLocationProviderManager, "setMockProvider", object: XC_MethodHook() {
             override fun beforeHookedMethod(param: MethodHookParam) {
-                val locationProvider = param.args[0]
                 if (FakeLoc.enableDebugLog) {
-                    Logger.debug("setMockProvider: $locationProvider")
+                    Logger.debug("setMockProvider called")
                 }
             }
         })
@@ -188,132 +207,111 @@ object LocationProviderManagerHook {
                 if(param.args.size < 4) return
                 val command = param.args[2]
 
-                if (command == "force_xtra_injection" || command == "CMD_SHOW_GPS_TIPS_CONFIG") {
+                if (FakeLoc.enable && (command == "force_xtra_injection" || command == "CMD_SHOW_GPS_TIPS_CONFIG")) {
                     param.result = null
                     return
                 }
 
-                val extras = param.args[3]
                 if (FakeLoc.enableDebugLog) {
-                    Logger.debug("sendExtraCommand: $command, $extras")
+                    Logger.debug("sendExtraCommand received: $command")
                 }
             }
         })
 
         run {
-            val hookedListeners = Collections.synchronizedSet(HashSet<String>())
-            if(cLocationProviderManager.onceHookAllMethod("getCurrentLocation", object: XC_MethodHook() {
+            val hookedListeners = Collections.synchronizedSet(mutableSetOf<Class<*>>())
+            val currentHooks = cLocationProviderManager.onceHookAllMethod("getCurrentLocation", object: XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
                     if (param.args.size < 4 || param.args[3] == null) return
 
                     val callback = param.args[3]
                     if (FakeLoc.enableDebugLog) {
-                        Logger.debug("getCurrentLocation injected: $callback")
+                        Logger.debug("getCurrentLocation callback hooked")
                     }
 
-                    if(FakeLoc.disableGetCurrentLocation) {
+                    if (FakeLoc.enable && FakeLoc.disableGetCurrentLocation) {
                         param.result = null
                         return
                     }
 
                     val classCallback = callback.javaClass
-                    if (hookedListeners.contains(classCallback.name)) return // Prevent repeated hooking
-                    if (XposedBridge.hookAllMethods(classCallback, "onLocation", object: XC_MethodHook() {
+                    synchronized(hookedListeners) {
+                        if (hookedListeners.contains(classCallback)) return
+                        val installed = runCatching { XposedBridge.hookAllMethods(classCallback, "onLocation", object: XC_MethodHook() {
                         override fun beforeHookedMethod(param: MethodHookParam?) {
                             if (param == null || param.args.isEmpty()) return
-                            val location = (param.args[0] ?: return) as Location
+                            val location = param.args[0] as? Location ?: run {
+                                param.args[0] = null
+                                return
+                            }
 
                             if (FakeLoc.enableDebugLog)
                                 Logger.debug("onLocation(LocationProviderManager.getCurrentLocation): injected!")
                             param.args[0] = injectLocation(location)
                         }
-                    }).isEmpty()) {
-                        Logger.error("hook onLocation(LocationProviderManager.getCurrentLocation) failed")
-                    }
+                        }).isNotEmpty() }.getOrDefault(false)
+                        if (!installed) {
+                            Logger.error("hook onLocation(LocationProviderManager.getCurrentLocation) failed")
+                            if (FakeLoc.enable) param.result = null
+                            return
+                        }
 
-                    hookedListeners.add(classCallback.name)
+                        hookedListeners.add(classCallback)
+                    }
                 }
-            }).isEmpty()) {
+
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    if (!param.hasThrowable() && param.result != null) {
+                        FixedGpsDispatcher.watch(param.thisObject)
+                    }
+                }
+            })
+            if (expectedCurrent != null && currentHooks.any { it.hookedMethod == expectedCurrent }) {
+                installedGpsCurrentMethod = expectedCurrent
+            }
+            if (installedGpsCurrentMethod != expectedCurrent || expectedCurrent == null) {
                 Logger.error("hook LocationProviderManager.getCurrentLocation failed")
             }
         }
 
-        cLocationProviderManager.onceHookMethodBefore("onReportLocation") {
-            val fieldMRegistrations = XposedHelpers.findFieldIfExists(cLocationProviderManager, "mRegistrations")
-            if (fieldMRegistrations == null) {
-                Logger.error("Failed to find mRegistrations in LocationProviderManager")
-                return@onceHookMethodBefore
-            }
-            if (!fieldMRegistrations.isAccessible)
-                fieldMRegistrations.isAccessible = true
-
-            if (!FakeLoc.enable) {
-                return@onceHookMethodBefore
-            }
-
-            val registrations = fieldMRegistrations.get(thisObject) as ArrayMap<*, *>
-            val newRegistrations = ArrayMap<Any, Any>()
-            registrations.forEach { registration ->
-                val value = registration.value ?: return@forEach
-                val locationResult = args[0]
-
-                val mLocationsField = XposedHelpers.findFieldIfExists(locationResult.javaClass, "mLocations")
-                if (mLocationsField == null) {
-                    Logger.error("Failed to find mLocations in LocationResult")
-                    return@onceHookMethodBefore
+        val registrationHooks = cLocationProviderManager.onceHookAllMethod("registerLocationRequest", object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    if (!param.hasThrowable()) {
+                        FixedGpsDispatcher.watch(param.thisObject)
+                    }
                 }
-                mLocationsField.isAccessible = true
-                val mLocations = mLocationsField.get(locationResult) as ArrayList<*>
-
-                val originLocation = mLocations.firstOrNull() as? Location
-                    ?: Location(LocationManager.GPS_PROVIDER)
-                val location = Location(originLocation.provider)
-
-                val jitterLat = FakeLoc.jitterLocation()
-                location.latitude = jitterLat.first
-                location.longitude = jitterLat.second
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    location.isMock = false
-                }
-                location.altitude = FakeLoc.altitude
-                location.speed = originLocation.speed
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    location.speedAccuracyMetersPerSecond = 0F
-                }
-
-                location.time = originLocation.time
-                location.accuracy = originLocation.accuracy
-                var modBearing = FakeLoc.bearing % 360.0 + 0.0
-                if (modBearing < 0) {
-                    modBearing += 360.0
-                }
-                location.bearing = modBearing.toFloat()
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && originLocation.hasBearingAccuracy()) {
-                    location.bearingAccuracyDegrees = modBearing.toFloat()
-                }
-                location.elapsedRealtimeNanos = originLocation.elapsedRealtimeNanos
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    location.elapsedRealtimeUncertaintyNanos = originLocation.elapsedRealtimeUncertaintyNanos
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    location.verticalAccuracyMeters = originLocation.verticalAccuracyMeters
-                }
-                originLocation.extras?.let {
-                    location.extras = it
-                }
-
-                mLocationsField.set(locationResult, arrayListOf(location))
-
-                val operation = XposedHelpers.callMethod(value, "acceptLocationChange", locationResult)
-                XposedHelpers.callMethod(value, "executeOperation", operation)
-            }
-
-            if (FakeLoc.enableDebugLog) {
-                Logger.debug("onReportLocation: injected!")
-            }
-
-            fieldMRegistrations.set(thisObject, newRegistrations)
+            })
+        if (expectedRegistration != null && registrationHooks.any { it.hookedMethod == expectedRegistration }) {
+            installedGpsRegistrationMethod = expectedRegistration
         }
+        if (installedGpsRegistrationMethod != expectedRegistration || expectedRegistration == null) {
+            Logger.warn("Fixed GPS registration observer unavailable")
+        }
+
+        // The fixed-mode start gate requires this exact void system method;
+        // class or hook installation failures must never be reported as ready.
+        val resultClass = XposedHelpers.findClassIfExists("android.location.LocationResult", classLoader)
+        val reportMethod = resultClass?.let {
+            XposedHelpers.findMethodExactIfExists(cLocationProviderManager, "onReportLocation", it)
+        }
+        if (reportMethod != null && reportMethod.returnType == Void.TYPE) {
+            if (installedSystemReportMethod != reportMethod &&
+                reportMethod.onceHook(hookOnFetchLocationResult) != null
+            ) {
+                installedSystemReportMethod = reportMethod
+            }
+        }
+        val reportReady = reportMethod != null && installedSystemReportMethod == reportMethod
+        val experimentalReady = !FixedGpsDispatcher.isVerifiedTestDevice() ||
+            (expectedCurrent != null && installedGpsCurrentMethod == expectedCurrent &&
+                expectedRegistration != null && installedGpsRegistrationMethod == expectedRegistration &&
+                FixedGpsDispatcher.hasRequiredSystemInterfaces(cLocationProviderManager, classLoader))
+        val ready = reportReady && experimentalReady
+        if (!ready) {
+            Logger.error("Required system location report hook is not ready")
+        }
+        return ready
+
     }
 
     private fun hookGeofenceProvider(classLoader: ClassLoader) {
@@ -332,7 +330,7 @@ object LocationProviderManagerHook {
                     if (FakeLoc.enableDebugLog) {
                         Logger.debug("LocationProviderBase.reportLocation: injected!")
                     }
-                    args[0] = injectLocation(args[0] as Location)
+                    args[0] = (args[0] as? Location)?.let { injectLocation(it) }
                 }
             }
             cGnssLocationProvider.onceHookMethodBefore("reportLocations", List::class.java) {
@@ -340,9 +338,10 @@ object LocationProviderManagerHook {
                 if (FakeLoc.enableDebugLog) {
                     Logger.debug("LocationProviderBase.reportLocations: injected!")
                 }
-                args[0] = (args[0] as List<*>).map {
-                    injectLocation(it as Location)
-                }
+                args[0] = (args[0] as? List<*>)
+                    ?.mapNotNull { it as? Location }
+                    ?.map { injectLocation(it) }
+                    ?: emptyList<Location>()
             }
         }.onFailure {
             Logger.warn("Failed to hook LocationProviderBase", it)
@@ -353,22 +352,24 @@ object LocationProviderManagerHook {
             cGnssLocationProvider.onceHookMethodBefore("onReportLocation", Boolean::class.java, Location::class.java) {
                 if (!FakeLoc.enable) return@onceHookMethodBefore
 
-                args[1] = injectLocation(args[1] as Location)
+                args[1] = (args[1] as? Location)?.let { injectLocation(it) }
 
                 if (FakeLoc.enableDebugLog) {
-                    Logger.debug("GnssLocationProvider.onReportLocation: injected! ${args[1]}")
+                    Logger.debug("GnssLocationProvider.onReportLocation: injected")
                 }
             }
 
             cGnssLocationProvider.onceHookMethodBefore("onReportLocations", Boolean::class.java, Array<Location>::class.java) {
                 if (!FakeLoc.enable) return@onceHookMethodBefore
 
-                args[0] = (args[0] as Array<*>).map {
-                    injectLocation(it as Location)
-                }.toTypedArray()
+                args[0] = (args[0] as? Array<*>)
+                    ?.mapNotNull { it as? Location }
+                    ?.map { injectLocation(it) }
+                    ?.toTypedArray()
+                    ?: emptyArray<Location>()
 
                 if (FakeLoc.enableDebugLog) {
-                    Logger.debug("GnssLocationProvider.onReportLocations: injected! ${args[0]}")
+                    Logger.debug("GnssLocationProvider.onReportLocations: injected")
                 }
             }
 

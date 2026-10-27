@@ -21,7 +21,10 @@ object GnssHook: BaseLocationHook() {
     }
 
     private fun hookFrameworkGnss(classLoader: ClassLoader) {
-        val cGnssManagerService = XposedHelpers.findClassIfExists("com.android.server.location.GnssManagerService", classLoader) ?: return
+        // Android 12+ moved the service into the gnss package; older releases keep the legacy name.
+        val cGnssManagerService = XposedHelpers.findClassIfExists("com.android.server.location.gnss.GnssManagerService", classLoader)
+            ?: XposedHelpers.findClassIfExists("com.android.server.location.GnssManagerService", classLoader)
+            ?: return Logger.error("GnssManagerService not found")
 
         val doNothingMethod = object: XC_MethodHook() {
             override fun beforeHookedMethod(param: MethodHookParam?) {
@@ -44,9 +47,6 @@ object GnssHook: BaseLocationHook() {
         XposedBridge.hookAllMethods(cGnssManagerService, "addGnssAntennaInfoListener", doNothingMethod)
         XposedBridge.hookAllMethods(cGnssManagerService, "addGnssMeasurementsListener", doNothingMethod)
         XposedBridge.hookAllMethods(cGnssManagerService, "addGnssNavigationMessageListener", doNothingMethod)
-        XposedBridge.hookAllMethods(cGnssManagerService, "removeGnssAntennaInfoListener", doNothingMethod)
-        XposedBridge.hookAllMethods(cGnssManagerService, "removeGnssMeasurementsListener", doNothingMethod)
-        XposedBridge.hookAllMethods(cGnssManagerService, "removeGnssNavigationMessageListener", doNothingMethod)
 
         run {
             val hookedGnssCallback = Collections.synchronizedSet(HashSet<String>())
@@ -73,7 +73,13 @@ object GnssHook: BaseLocationHook() {
                                         return
                                     }
 
-                                    val nmea = param.args[1] as String
+                                    if (!FakeLoc.enable) return
+                                    // Same policy as LocationNMEAHook: no NMEA during a fixed session.
+                                    if (FakeLoc.fixedLocationMode) {
+                                        param.result = null
+                                        return
+                                    }
+                                    val nmea = param.args[1] as? String ?: return
                                     param.args[1] = injectNMEA(nmea) ?: nmea
                                 }
                             })
@@ -128,6 +134,17 @@ object GnssHook: BaseLocationHook() {
                     }
                 }
             })
+
+            // Raw measurements, navigation messages and antenna info let an app solve
+            // its real position independently of the reported Location. Drop them at
+            // the HAL callback so listeners registered before the session also stop
+            // receiving real data.
+            listOf("reportMeasurementData", "reportNavigationMessage", "reportAntennaInfo").forEach { name ->
+                val unhooks = cGnssNative.hookAllMethods(name, beforeHook {
+                    if (FakeLoc.enable) result = null
+                })
+                if (unhooks.isEmpty()) Logger.warn("GnssNative.$name not found")
+            }
         } else {
             Logger.error("GnssNative not found")
         }

@@ -22,7 +22,13 @@ class BaiduMapViewModel: ViewModel() {
      */
     var currentLocation: Pair<Double, Double>? = null
 
+    var onSelectionChanged: (() -> Unit)? = null
+
     var markName: String? = null
+        set(value) {
+            field = value
+            onSelectionChanged?.invoke()
+        }
 
     /**
      * Marked location
@@ -31,6 +37,10 @@ class BaiduMapViewModel: ViewModel() {
      * second => longitude
      */
     var markedLoc: Pair<Double, Double>? = null
+        set(value) {
+            field = value
+            onSelectionChanged?.invoke()
+        }
     var showDetailView = false
 
     /* Notification */

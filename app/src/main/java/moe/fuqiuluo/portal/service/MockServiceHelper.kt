@@ -22,40 +22,93 @@ import moe.fuqiuluo.portal.ext.needDowngradeToCdma
 import moe.fuqiuluo.portal.ext.speed
 import moe.fuqiuluo.portal.ext.reportDuration
 import moe.fuqiuluo.portal.ext.loopBroadcastlocation
+import moe.fuqiuluo.xposed.utils.FixedLocationConfig
+import moe.fuqiuluo.xposed.utils.FixedLocationPolicy
 import moe.fuqiuluo.xposed.utils.FakeLoc
+import moe.fuqiuluo.xposed.utils.PortalIpc
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 object MockServiceHelper {
-    const val PROVIDER_NAME = "portal"
-    private lateinit var randomKey: String
+    private data class FixedLocationReadback(
+        val config: FixedLocationConfig,
+        val fixedMode: Boolean,
+        val fusedDisabled: Boolean,
+    )
+
+    const val LEGACY_PROVIDER_NAME = PortalIpc.LEGACY_PROVIDER
+    const val V2_PROVIDER_NAME = PortalIpc.V2_PROVIDER
+
+    /** Preserves the old public property while selecting the v2 namespace at runtime. */
+    val PROVIDER_NAME: String
+        get() = providerName()
+
+    private val randomKeys = ConcurrentHashMap<String, String>()
 
     private var loopThread :Thread ?= null
     @Volatile private var isRunning = false
 
+    private fun providerName(context: Context? = null): String {
+        val applicationId = context?.packageName
+            ?: runCatching { Portal.appContext.packageName }.getOrNull()
+        return PortalIpc.providerForApplicationId(applicationId)
+    }
+
+    private fun randomKey(provider: String = providerName()): String? {
+        return randomKeys[provider]
+    }
+
+    private fun sendCommand(
+        locationManager: LocationManager,
+        provider: String,
+        command: String,
+        rely: Bundle,
+    ): Boolean {
+        return runCatching {
+            locationManager.sendExtraCommand(provider, command, rely)
+        }.onFailure {
+            Log.e("MockServiceHelper", "Location command failed: $command", it)
+        }.getOrDefault(false)
+    }
+
+    private fun sendAuthenticated(
+        locationManager: LocationManager,
+        rely: Bundle,
+        provider: String = providerName(),
+    ): Boolean {
+        val key = randomKey(provider) ?: return false
+        return sendCommand(locationManager, provider, key, rely)
+    }
+
     fun tryInitService(locationManager: LocationManager) {
+        val provider = providerName()
         val rely = Bundle()
         Log.d("MockServiceHelper", "Try to init service")
-        if(locationManager.sendExtraCommand(PROVIDER_NAME, "exchange_key", rely)) {
+        if(sendCommand(locationManager, provider, "exchange_key", rely)) {
             rely.getString("key")?.let {
-                randomKey = it
-                Log.d("MockServiceHelper", "Service init success, key: $randomKey")
+                randomKeys[provider] = it
+                Log.d("MockServiceHelper", "Service init success")
+            } ?: run {
+                randomKeys.remove(provider)
+                Log.e("MockServiceHelper", "Service init returned no key")
             }
         } else {
+            randomKeys.remove(provider)
             Log.e("MockServiceHelper", "Failed to init service")
         }
     }
 
-    fun isMockStart(locationManager: LocationManager): Boolean {
-        if (!::randomKey.isInitialized) {
-            return false
-        }
+    /** Returns null when the service did not return a readable status. */
+    fun getMockStatus(locationManager: LocationManager): Boolean? {
         val rely = Bundle()
         rely.putString("command_id", "is_start")
-        if(locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)) {
+        if (sendAuthenticated(locationManager, rely) && rely.containsKey("is_start")) {
             return rely.getBoolean("is_start")
         }
-        return false
+        return null
     }
+
+    fun isMockStart(locationManager: LocationManager): Boolean = getMockStatus(locationManager) == true
 
     fun isGnssMockStart(locationManager: LocationManager): Boolean {
         // 因为 Location Mock 和 GNSS Mock 现在完全联动
@@ -64,60 +117,48 @@ object MockServiceHelper {
     }
 
     fun startGnssMock(locationManager: LocationManager, context: android.content.Context): Boolean {
-        if (!::randomKey.isInitialized) {
-            return false
-        }
+        val provider = providerName(context)
+        if (randomKey(provider) == null) return false
         // 使用 start 命令以确保完全联动
         val rely = Bundle()
         rely.putString("command_id", "start")
         // 从 SharedPreferences 读取配置，而不是从 Xposed 模块的 FakeLoc
-        val sharedPrefs = context.getSharedPreferences(PROVIDER_NAME, android.content.Context.MODE_PRIVATE)
+        val sharedPrefs = context.getSharedPreferences(provider, android.content.Context.MODE_PRIVATE)
         rely.putDouble("speed", sharedPrefs.getFloat("speed", 1.2f).toDouble())
         rely.putDouble("altitude", sharedPrefs.getFloat("altitude", 0f).toDouble())
         rely.putFloat("accuracy", sharedPrefs.getFloat("accuracy", 0f))
+        if (!sendAuthenticated(locationManager, rely, provider)) return false
         startLoopBroadcastLocation(locationManager)
-        return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
+        return true
     }
 
     fun stopGnssMock(locationManager: LocationManager): Boolean {
-        if (!::randomKey.isInitialized) {
-            return false
-        }
         // 使用 stop 命令以确保完全联动
         val rely = Bundle()
         rely.putString("command_id", "stop")
         stopLoopBroadcastLocation()
-        return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
+        return sendAuthenticated(locationManager, rely)
     }
 
     fun isWifiMockStart(locationManager: LocationManager): Boolean {
-        if (!::randomKey.isInitialized) {
-            return false
-        }
         val rely = Bundle()
         rely.putString("command_id", "is_wifi_mock_start")
-        if(locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)) {
+        if(sendAuthenticated(locationManager, rely)) {
             return rely.getBoolean("is_wifi_mock_start")
         }
         return false
     }
 
     fun startWifiMock(locationManager: LocationManager): Boolean {
-        if (!::randomKey.isInitialized) {
-            return false
-        }
         val rely = Bundle()
         rely.putString("command_id", "start_wifi_mock")
-        return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
+        return sendAuthenticated(locationManager, rely)
     }
 
     fun stopWifiMock(locationManager: LocationManager): Boolean {
-        if (!::randomKey.isInitialized) {
-            return false
-        }
         val rely = Bundle()
         rely.putString("command_id", "stop_wifi_mock")
-        return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
+        return sendAuthenticated(locationManager, rely)
     }
 
     fun tryOpenMock(
@@ -126,198 +167,256 @@ object MockServiceHelper {
         altitude: Double,
         accuracy: Float,
     ): Boolean {
-        if (!::randomKey.isInitialized) {
-            return false
-        }
+        if (randomKey() == null) return false
         val rely = Bundle()
         rely.putString("command_id", "start")
         rely.putDouble("speed", speed)
         rely.putDouble("altitude", altitude)
         rely.putFloat("accuracy", accuracy)
-        startLoopBroadcastLocation(locationManager)
-        
         // Xposed 层已实现 Location Mock 和 GNSS Mock 的联动
-        return if(locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)) {
-            isMockStart(locationManager)
+        return if(sendAuthenticated(locationManager, rely)) {
+            val started = isMockStart(locationManager)
+            if (started) {
+                startLoopBroadcastLocation(locationManager)
+            }
+            started
         } else {
             false
         }
     }
 
     fun tryCloseMock(locationManager: LocationManager): Boolean {
-        if (!::randomKey.isInitialized) {
-            return false
-        }
         val rely = Bundle()
         rely.putString("command_id", "stop")
         stopLoopBroadcastLocation()
         
         // Xposed 层已实现 Location Mock 和 GNSS Mock 的联动
-        if (locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)) {
-            return !isMockStart(locationManager)
+        return sendAuthenticated(locationManager, rely) && getMockStatus(locationManager) == false
+    }
+
+    /**
+     * Starts one fixed-location session. The system-side command validates and
+     * commits the complete snapshot before enabling the hook; this method then
+     * reads back every configured field before reporting success.
+     */
+    /** Protection named by the system side when it refused the last fixed start, if any. */
+    @Volatile
+    var lastFixedStartBlockedReason: String? = null
+        private set
+
+    fun startFixedMock(
+        locationManager: LocationManager,
+        latitude: Double,
+        longitude: Double,
+        altitude: Double,
+        accuracy: Float,
+        fusedDisabled: Boolean,
+    ): Boolean {
+        lastFixedStartBlockedReason = null
+        val expected = FixedLocationPolicy.validate(latitude, longitude, altitude, accuracy)
+            ?: return false
+        val rely = Bundle().apply {
+            putString("command_id", PortalIpc.FIXED_START_COMMAND)
+            putDouble("latitude", expected.latitude)
+            putDouble("longitude", expected.longitude)
+            putDouble("altitude", expected.altitude)
+            putFloat("accuracy", expected.accuracy)
+            putBoolean("disable_fused_location", fusedDisabled)
         }
+
+        val commandAccepted = sendAuthenticated(locationManager, rely)
+        lastFixedStartBlockedReason = rely.getString(PortalIpc.FIXED_START_BLOCKED_REASON)
+        if (!commandAccepted) {
+            rollbackFailedFixedStart(locationManager)
+            return false
+        }
+        if (!rely.getBoolean(PortalIpc.FIXED_START_ACK, false)) {
+            // A transport-level success without the explicit acknowledgement
+            // may still mean that an older or partially compatible hook ran.
+            rollbackFailedFixedStart(locationManager)
+            return false
+        }
+
+        val enabled = isMockStart(locationManager)
+        val location = getLocation(locationManager)
+        val actual = getFixedConfig(locationManager)
+        val confirmed = FixedLocationPolicy.isConfirmed(
+            expected = expected,
+            commandAccepted = commandAccepted,
+            acknowledgement = true,
+            enabled = enabled,
+            fixedMode = actual?.fixedMode == true,
+            actual = actual?.config,
+            readBackCoordinates = location,
+        )
+        if (confirmed && actual?.fusedDisabled == fusedDisabled &&
+            rely.containsKey("disable_fused_location") &&
+            rely.getBoolean("disable_fused_location") == fusedDisabled
+        ) return true
+
+        rollbackFailedFixedStart(locationManager)
         return false
     }
 
-    fun getLocation(locationManager: LocationManager): Pair<Double, Double>? {
-        if (!::randomKey.isInitialized) {
+    private fun getFixedConfig(locationManager: LocationManager): FixedLocationReadback? {
+        val rely = Bundle().apply { putString("command_id", "get_fixed_config") }
+        if (!sendAuthenticated(locationManager, rely) ||
+            !rely.getBoolean(PortalIpc.FIXED_CONFIG_VALID, false) ||
+            !rely.containsKey("disable_fused_location")
+        ) {
             return null
         }
+        val config = FixedLocationPolicy.validate(
+            latitude = rely.getDouble("latitude", Double.NaN),
+            longitude = rely.getDouble("longitude", Double.NaN),
+            altitude = rely.getDouble("altitude", Double.NaN),
+            accuracy = rely.getFloat("accuracy", Float.NaN),
+        ) ?: return null
+        return FixedLocationReadback(
+            config = config,
+            fixedMode = rely.getBoolean("fixed_location_mode", false),
+            fusedDisabled = rely.getBoolean("disable_fused_location"),
+        )
+    }
+
+    fun isFixedFusedDisabled(locationManager: LocationManager): Boolean? {
+        val readback = getFixedConfig(locationManager) ?: return null
+        return if (readback.fixedMode) readback.fusedDisabled else null
+    }
+
+    private fun rollbackFailedFixedStart(locationManager: LocationManager) {
+        val rely = Bundle().apply { putString("command_id", "stop") }
+        sendAuthenticated(locationManager, rely)
+    }
+
+    fun getLocation(locationManager: LocationManager): Pair<Double, Double>? {
         val rely = Bundle()
         rely.putString("command_id", "get_location")
-        if(locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)) {
+        if (sendAuthenticated(locationManager, rely) && rely.containsKey("lat") && rely.containsKey("lon")) {
             return Pair(rely.getDouble("lat"), rely.getDouble("lon"))
         }
         return null
     }
 
     fun getLocationListenerSize(locationManager: LocationManager): Int? {
-        if (!::randomKey.isInitialized) {
-            return null
-        }
         val rely = Bundle()
         rely.putString("command_id", "get_listener_size")
-        if(locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)) {
+        if(sendAuthenticated(locationManager, rely)) {
             return rely.getInt("size")
         }
         return null
     }
 
     fun broadcastLocation(locationManager: LocationManager): Boolean {
-        if (!::randomKey.isInitialized) {
-            return false
-        }
         val rely = Bundle()
         rely.putString("command_id", "broadcast_location")
-        return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
+        return sendAuthenticated(locationManager, rely)
     }
 
     fun setBearing(locationManager: LocationManager, bearing: Double): Boolean {
-        if (!::randomKey.isInitialized) {
-            return false
-        }
         val rely = Bundle()
         rely.putString("command_id", "set_bearing")
         rely.putDouble("bearing", bearing)
-        return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
+        return sendAuthenticated(locationManager, rely)
     }
 
     fun setSpeed(locationManager: LocationManager, speed: Float): Boolean {
-        if (!::randomKey.isInitialized) {
-            return false
-        }
         val rely = Bundle()
         rely.putString("command_id", "set_speed")
         rely.putFloat("speed", speed)
-        return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
+        return sendAuthenticated(locationManager, rely)
     }
 
     fun setAltitude(locationManager: LocationManager, altitude: Double): Boolean {
-        if (!::randomKey.isInitialized) {
-            return false
-        }
         val rely = Bundle()
         rely.putString("command_id", "set_altitude")
         rely.putDouble("altitude", altitude)
-        return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
+        return sendAuthenticated(locationManager, rely)
     }
 
     fun setSpeedAmplitude(locationManager: LocationManager, speedAmplitude: Double): Boolean {
-        if (!::randomKey.isInitialized) {
-            return false
-        }
         val rely = Bundle()
         rely.putString("command_id", "set_speed_amp")
         rely.putDouble("speed_amplitude", speedAmplitude)
-        return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
+        return sendAuthenticated(locationManager, rely)
     }
 
     fun getSpeed(locationManager: LocationManager): Float? {
-        if (!::randomKey.isInitialized) {
-            return null
-        }
         val rely = Bundle()
         rely.putString("command_id", "get_speed")
-        if(locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)) {
+        if(sendAuthenticated(locationManager, rely)) {
             return rely.getFloat("speed")
         }
         return null
     }
 
     fun getBearing(locationManager: LocationManager): Float? {
-        if (!::randomKey.isInitialized) {
-            return null
-        }
         val rely = Bundle()
         rely.putString("command_id", "get_bearing")
-        if(locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)) {
+        if(sendAuthenticated(locationManager, rely)) {
             return rely.getFloat("bearing")
         }
         return null
     }
 
     fun getAltitude(locationManager: LocationManager): Double? {
-        if (!::randomKey.isInitialized) {
-            return null
-        }
         val rely = Bundle()
         rely.putString("command_id", "get_altitude")
-        if(locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)) {
+        if(sendAuthenticated(locationManager, rely)) {
             return rely.getDouble("altitude")
         }
         return null
     }
 
     fun move(locationManager: LocationManager, distance: Double, bearing: Double): Boolean {
-        if (!::randomKey.isInitialized) {
-            return false
-        }
         val rely = Bundle()
         rely.putString("command_id", "move")
         rely.putDouble("n", distance)
         rely.putDouble("bearing", bearing)
 
         if (FakeLoc.enableDebugLog) {
-            Log.d("MockServiceHelper", "move: distance=$distance, bearing=$bearing")
+            Log.d("MockServiceHelper", "move command sent")
         }
 
-        return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
+        return sendAuthenticated(locationManager, rely)
     }
 
     fun setLocation(locationManager: LocationManager, lat: Double, lon: Double): Boolean {
         return updateLocation(locationManager, lat, lon, "=")
     }
 
-    fun updateLocation(locationManager: LocationManager, lat: Double, lon: Double, mode: String): Boolean {
-        if (!::randomKey.isInitialized) {
+    /** Confirm a fixed-location change against the system-side state. */
+    fun updateFixedLocation(locationManager: LocationManager, lat: Double, lon: Double): Boolean {
+        if (!lat.isFinite() || lat !in -90.0..90.0 || !lon.isFinite() || lon !in -180.0..180.0) {
             return false
         }
+        if (!setLocation(locationManager, lat, lon)) return false
+        val actual = getFixedConfig(locationManager) ?: return false
+        return getMockStatus(locationManager) == true && actual.fixedMode &&
+            actual.config.latitude == lat && actual.config.longitude == lon &&
+            getLocation(locationManager) == (lat to lon)
+    }
+
+    fun updateLocation(locationManager: LocationManager, lat: Double, lon: Double, mode: String): Boolean {
         val rely = Bundle()
         rely.putString("command_id", "update_location")
         rely.putDouble("lat", lat)
         rely.putDouble("lon", lon)
         rely.putString("mode", mode)
-        return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
+        return sendAuthenticated(locationManager, rely)
     }
 
     fun loadLibrary(locationManager: LocationManager, path: String): String? {
-        if (!::randomKey.isInitialized) {
-            return null
-        }
         val rely = Bundle()
         rely.putString("command_id", "load_library")
         rely.putString("path", path)
-        if(locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)) {
+        if(sendAuthenticated(locationManager, rely)) {
             return rely.getString("result")
         }
         return null
     }
 
     fun putConfig(locationManager: LocationManager, context: Context): Boolean {
-        if (!::randomKey.isInitialized) {
-            return false
-        }
-
         FakeLoc.altitude = context.altitude
         FakeLoc.speed = context.speed
         FakeLoc.enableDebugLog = context.debug
@@ -347,11 +446,11 @@ object MockServiceHelper {
         rely.putBoolean("disable_request_geofence", FakeLoc.disableRequestGeofence)
         rely.putBoolean("disable_get_from_location", FakeLoc.disableGetFromLocation)
 
-        return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
+        return sendAuthenticated(locationManager, rely, providerName(context))
     }
 
     fun isServiceInit(): Boolean {
-        return ::randomKey.isInitialized
+        return randomKey() != null
     }
 
 

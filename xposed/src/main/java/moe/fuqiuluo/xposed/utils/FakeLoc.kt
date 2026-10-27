@@ -10,6 +10,11 @@ import kotlin.math.sqrt
 import kotlin.random.Random
 
 object FakeLoc {
+    data class Coordinates(
+        val latitude: Double,
+        val longitude: Double,
+    )
+
     /**
      * 是否允许打印日志
      */
@@ -18,7 +23,9 @@ object FakeLoc {
     /**
      * 是否允许打印调试日志
      */
-    var enableDebugLog = true
+    // Keep diagnostic output opt-in so location-bearing paths do not add
+    // unnecessary system-log exposure in a fresh installation.
+    var enableDebugLog = false
 
     /**
      * 模拟定位服务开关
@@ -51,7 +58,7 @@ object FakeLoc {
     /**
      * 如果TelephonyHook失效，可能需要打开此开关
      */
-    var disableFusedLocation = true
+    @Volatile var disableFusedLocation = true
     var disableNetworkLocation = true
 
     var disableRequestGeofence = false
@@ -107,6 +114,9 @@ object FakeLoc {
     @Volatile var longitude = 0.0
     @Volatile var altitude = 80.0
 
+    /** True for the fixed-location command; legacy route controls keep their old jitter behavior. */
+    @Volatile var fixedLocationMode = false
+
     @Volatile var speed = 3.05
 
     var speedAmplitude = 1.0
@@ -159,14 +169,44 @@ object FakeLoc {
         return radius * c
     }
 
-    fun jitterLocation(lat: Double = latitude, lon: Double = longitude, n: Double = Random.nextDouble(0.0, accuracy.toDouble()), angle: Double = bearing): Pair<Double, Double> {
+    @Synchronized
+    fun setCoordinates(newLatitude: Double, newLongitude: Double) {
+        latitude = newLatitude
+        longitude = newLongitude
+    }
+
+    @Synchronized
+    fun coordinateSnapshot(): Coordinates {
+        return Coordinates(latitude, longitude)
+    }
+
+    fun jitterLocation(
+        lat: Double = latitude,
+        lon: Double = longitude,
+        n: Double = FixedLocationPolicy.safeJitterDistance(accuracy.toDouble()),
+        angle: Double = bearing,
+    ): Pair<Double, Double> {
+        val safeLat = lat.takeIf { it.isFinite() && it in -90.0..90.0 } ?: 0.0
+        val safeLon = lon.takeIf { it.isFinite() && it in -180.0..180.0 } ?: 0.0
+        val safeDistance = n.takeIf { it.isFinite() && it > 0.0 } ?: 0.0
+
+        if (safeDistance == 0.0) {
+            return Pair(safeLat, safeLon)
+        }
+
         val earthRadius = 6371000.0
-        val radiusInDegrees = n / 15 / earthRadius * (180 / PI)
+        val radiusInDegrees = safeDistance / 15 / earthRadius * (180 / PI)
 
-        val jitterAngle = if (Random.nextBoolean()) angle + 45 else angle - 45
+        val safeAngle = angle.takeIf { it.isFinite() } ?: 0.0
+        val jitterAngle = if (Random.nextBoolean()) safeAngle + 45 else safeAngle - 45
+        val latitudeCosine = cos(Math.toRadians(safeLat))
+        if (kotlin.math.abs(latitudeCosine) < 1.0e-12) {
+            return Pair(safeLat, safeLon)
+        }
 
-        val newLat = lat + radiusInDegrees * cos(Math.toRadians(jitterAngle))
-        val newLon = lon + radiusInDegrees * sin(Math.toRadians(jitterAngle)) / cos(Math.toRadians(lat))
+        val newLat = (safeLat + radiusInDegrees * cos(Math.toRadians(jitterAngle))).coerceIn(-90.0, 90.0)
+        val newLon = (safeLon + radiusInDegrees * sin(Math.toRadians(jitterAngle)) / latitudeCosine)
+            .coerceIn(-180.0, 180.0)
 
         return Pair(newLat, newLon)
     }

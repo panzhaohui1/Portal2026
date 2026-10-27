@@ -11,6 +11,8 @@ import android.os.Build;
 
 import androidx.annotation.RequiresApi;
 
+import moe.fuqiuluo.portal.R;
+
 public class NotificationUtils extends ContextWrapper {
 
     private NotificationManager mManager;
@@ -52,7 +54,7 @@ public class NotificationUtils extends ContextWrapper {
         return new Notification.Builder(getApplicationContext(), ANDROID_CHANNEL_ID)
                 .setContentTitle(title)
                 .setContentText(body)
-                .setSmallIcon(android.R.drawable.stat_notify_more)
+                .setSmallIcon(R.drawable.baseline_location_on_24)
                 .setAutoCancel(true);
     }
 }

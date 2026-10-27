@@ -14,7 +14,7 @@ object BlindHookLocation: BaseLocationHook() {
             val newLoc = injectLocation(location)
 
             if (FakeLoc.enableDebugLog) {
-                Logger.debug("${method.name} injected: $newLoc")
+                Logger.debug("${method.name} injected")
             }
 
             newLoc

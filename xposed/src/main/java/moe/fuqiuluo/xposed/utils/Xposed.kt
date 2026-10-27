@@ -6,6 +6,7 @@ import de.robv.android.xposed.XposedHelpers
 import java.lang.reflect.Method
 import java.util.Collections
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 private val hookedMethods = Collections.synchronizedSet(mutableSetOf<String>())
 private val hookOnceLock = ReentrantLock()
@@ -35,12 +36,10 @@ private fun <T> ifNotHook(
  * @return Unhook object, you can use it to unhook the method.
  */
 fun Method.onceHook(callback: XC_MethodHook): XC_MethodHook.Unhook? {
-    return ifNotHook(declaringClass.name, name, parameterTypes) {
-        hookOnceLock.lock()
-        hookedMethods.add(it)
-        val unhook = XposedBridge.hookMethod(this, callback)
-        hookOnceLock.unlock()
-        return@ifNotHook unhook
+    return hookOnceLock.withLock {
+        ifNotHook(declaringClass.name, name, parameterTypes) { key ->
+            XposedBridge.hookMethod(this, callback).also { hookedMethods.add(key) }
+        }
     }
 }
 
@@ -86,16 +85,18 @@ fun Method.onceHookAfter(callback: XC_MethodHook.MethodHookParam.() -> Unit): XC
  */
 fun <T> Class<T>.onceHookAllMethod(methodName: String, callback: XC_MethodHook): Set<XC_MethodHook.Unhook> {
     val unhooks = mutableSetOf<XC_MethodHook.Unhook>()
-    hookOnceLock.lock()
-    declaredMethods.forEach { method ->
-        if (method.name == methodName) {
-            ifNotHook(name, methodName, method.parameterTypes) { key ->
-                method.hook(callback)?.let { unhooks.add(it) }
-                hookedMethods.add(key)
+    hookOnceLock.withLock {
+        declaredMethods.forEach { method ->
+            if (method.name == methodName) {
+                ifNotHook(name, methodName, method.parameterTypes) { key ->
+                    method.hook(callback)?.let {
+                        unhooks.add(it)
+                        hookedMethods.add(key)
+                    }
+                }
             }
         }
     }
-    hookOnceLock.unlock()
     return unhooks
 }
 

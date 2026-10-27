@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="v2_fused_degraded">融合定位已暂停或无法确认</string>
+    <string name="v2_fused_degraded_detail">固定点仍在运行；请检查小米融合定位模块，停止后重新启动，并重新验证目标应用。</string>
+    <string name="v2_service_checking">正在检查系统服务…</string>
+    <string name="v2_service_checking_detail">正在读取当前连接状态。</string>
+    <string name="v2_service_not_connected">系统服务未连接</string>
+    <string name="v2_service_not_connected_detail">LSPosed 模块可能未启用、作用域不完整或尚未重启。点按“排查步骤”查看处理方法。</string>
+    <string name="v2_service_ready">系统服务已连接</string>
+    <string name="v2_service_ready_detail">已连接，可以启动当前固定位置。</string>
+    <string name="v2_service_running">固定点模拟运行中</string>
+    <string name="v2_service_running_detail">系统端已确认；小米融合定位和其他应用的实际表现仍需单独验证。</string>
+    <string name="v2_service_starting">正在启动固定点模拟…</string>
+    <string name="v2_service_starting_detail">正在等待系统服务完成位置设置。</string>
+    <string name="v2_service_stopping">正在停止固定点模拟…</string>
+    <string name="v2_service_stopping_detail">正在等待系统服务返回停止结果。</string>
+    <string name="v2_start_failed">启动失败</string>
+    <string name="v2_start_failed_detail">未能确认固定点模拟已启动，请检查系统服务和所选位置。</string>
+    <string name="v2_stop_failed">停止失败</string>
+    <string name="v2_stop_failed_detail">未能确认服务已停止，请稍后重试并观察状态。</string>
+    <string name="v2_location_update_failed">位置更新失败</string>
+    <string name="v2_location_update_failed_detail">已保留当前选择，但运行中的位置未确认更新。</string>
+    <string name="v2_service_status_scope_note">此状态仅表示当前连接与返回结果，不代表所有兼容性或隐私行为均已验证。</string>
+
+    <string name="v2_current_location">当前固定位置</string>
+    <string name="v2_fixed_location_menu">固定位置</string>
+    <string name="v2_gnss_menu">卫星定位设置</string>
+    <string name="v2_settings_menu">设置</string>
+    <string name="v2_no_location_selected">尚未选择位置</string>
+    <string name="v2_no_address">暂无地址</string>
+    <string name="v2_no_coordinates">暂无坐标</string>
+    <string name="v2_coordinates_format">WGS84：%1$.6f, %2$.6f</string>
+    <string name="v2_choose_location">选择固定位置</string>
+    <string name="v2_change_location">更换固定位置</string>
+    <string name="v2_choose_location_description">打开地图选择或更换固定位置</string>
+    <string name="v2_start_fixed">启动固定点</string>
+    <string name="v2_stop_fixed">停止固定点</string>
+    <string name="v2_start_fixed_description">启动固定点模拟</string>
+    <string name="v2_stop_fixed_description">停止固定点模拟</string>
+    <string name="v2_fixed_started">固定点模拟已启动</string>
+    <string name="v2_fixed_stopped">固定点模拟已停止</string>
+    <string name="v2_select_location_first">请先选择一个固定位置</string>
+    <string name="v2_stop_before_change">请先停止模拟，再更换固定位置</string>
+    <string name="v2_start_fixed_first">请先启动固定点模拟</string>
+    <string name="v2_service_not_running">模拟服务当前未启动</string>
+    <string name="v2_location_selected">已设为当前固定位置</string>
+    <string name="v2_location_updated">运行中的位置已更新</string>
+    <string name="v2_overlay_permission_required">摇杆需要悬浮窗权限</string>
+    <string name="v2_rocker_label">可选悬浮微调</string>
+    <string name="v2_rocker_description">仅在需要时使用，不改变固定点启动流程</string>
+
+    <string name="v2_saved_locations_title">已保存地点</string>
+    <string name="v2_saved_locations_description">已保存地点列表，点按设为当前固定位置，长按查看更多操作</string>
+    <string name="v2_saved_locations_empty">还没有已保存地点
+点按“选择固定位置”在地图上保存一个地点。</string>
+    <string name="v2_long_press_delete_hint">左右滑动或长按可删除已保存地点</string>
+    <string name="v2_delete_location_title">删除地点</string>
+    <string name="v2_delete_location_message">确定删除“%1$s”吗？</string>
+    <string name="v2_delete">删除</string>
+    <string name="v2_cancel">取消</string>
+    <string name="v2_location_deleted">已删除地点</string>
+
+    <string name="v2_select_location_title">选择固定位置</string>
+    <string name="v2_select_location_hint">点按地图放置标记，或手动输入/粘贴坐标</string>
+    <string name="v2_enable_online_map">启用在线地图</string>
+    <string name="v2_enable_online_map_description">启用需要联网的在线地图</string>
+    <string name="v2_retry_online_map">重新加载在线地图</string>
+    <string name="v2_retry_online_map_description">重新尝试加载在线地图</string>
+    <string name="v2_online_map_disabled_manual_hint">在线地图未启用；可直接手动输入坐标。</string>
+    <string name="v2_online_map_initializing">正在启用在线地图…</string>
+    <string name="v2_online_map_failed">在线地图未启用；仍可手动输入坐标。</string>
+    <string name="v2_online_map_unavailable_manual_hint">在线地图加载失败；仍可手动输入坐标。</string>
+    <string name="v2_online_map_enabled">在线地图已启用</string>
+    <string name="v2_online_map_consent_title">启用在线地图？</string>
+    <string name="v2_online_map_consent_message">在线地图需要联网，可能向百度等第三方提供设备 IP、地图范围和请求信息。Portal 不保证地图 SDK 或网络访问受到隐私保护；拒绝后仍可手动输入坐标。</string>
+    <string name="v2_online_map_consent_positive">继续启用</string>
+    <string name="v2_online_map_consent_negative">暂不启用</string>
+    <string name="v2_selected_location_none">尚未选择地图位置</string>
+    <string name="v2_selected_location_ready">已选择地图位置</string>
+    <string name="v2_selected_location_address_pending">未获取地址；保存时可以编辑</string>
+    <string name="v2_select_location_error">请先在地图上点选一个位置，或手动输入坐标</string>
+    <string name="v2_map_description">地图选点区域，点按放置位置标记</string>
+    <string name="v2_map_type_description">切换地图样式</string>
+    <string name="v2_my_location_description">请求真实当前位置并移动地图</string>
+    <string name="v2_current_location_unavailable">当前位置暂不可用，请稍后重试或手动输入坐标</string>
+    <string name="v2_map_unavailable_manual_hint">地图暂不可用；仍可手动输入坐标并保存。</string>
+    <string name="v2_requesting_current_location">正在请求真实当前位置…</string>
+    <string name="v2_save_location">保存位置</string>
+    <string name="v2_confirm">确定</string>
+    <string name="v2_manual_coordinates">手动输入坐标</string>
+    <string name="v2_manual_coordinates_short">输入坐标</string>
+    <string name="v2_running_location_mismatch">当前运行位置与已选地点不一致，请停止模拟后重新选择并启动。</string>
+    <string name="v2_running_location_unverified">暂时无法核对运行位置，请重新检测后再使用。</string>
+    <string name="v2_manual_coordinates_description">不依赖地图，手动输入纬度和经度</string>
+    <string name="v2_name_required">名称不能为空</string>
+    <string name="v2_address_required">地址不能为空</string>
+    <string name="v2_coordinates_invalid">请输入有效的纬度和经度</string>
+    <string name="v2_default_marked_name">地点 %1$s</string>
+    <string name="v2_location_saved">已保存并设为当前固定位置，返回首页即可启动</string>
+    <!-- Manual coordinate entry -->
+    <string name="v2_coord_system_label">坐标来源（决定是否需要纠偏换算）</string>
+    <string name="v2_coord_wgs84">WGS84\nGPS·谷歌</string>
+    <string name="v2_coord_gcj02">GCJ-02\n高德·腾讯</string>
+    <string name="v2_coord_bd09">BD-09\n百度</string>
+    <string name="v2_paste_coordinates_hint">粘贴坐标（可选）</string>
+    <string name="v2_paste_coordinates_helper">支持“纬度, 经度”，也能识别拾取器常用的“经度,纬度”</string>
+    <string name="v2_paste_coordinates_invalid">无法识别坐标，请检查格式</string>
+    <string name="v2_latitude_hint">纬度（-90 ~ 90）</string>
+    <string name="v2_longitude_hint">经度（-180 ~ 180）</string>
+    <string name="v2_latitude_invalid">纬度应在 -90 到 90 之间</string>
+    <string name="v2_longitude_invalid">经度应在 -180 到 180 之间</string>
+    <string name="v2_coordinate_preview_empty">输入后，这里会显示实际下发给系统的 WGS84 坐标。</string>
+    <string name="v2_coordinate_preview">将使用 WGS84：%1$.6f, %2$.6f</string>
+
+    <!-- Save dialog -->
+    <string name="v2_save_location_title">保存地点</string>
+    <string name="v2_location_name_hint">名称</string>
+    <string name="v2_location_address_hint">地址或备注（可选）</string>
+
+    <!-- Home: status and guidance -->
+    <string name="v2_service_retry">重新检测</string>
+    <string name="v2_service_troubleshoot">排查步骤</string>
+    <string name="v2_troubleshoot_title">系统服务未连接</string>
+    <string name="v2_troubleshoot_message">1. 在 LSPosed 中启用 Portal2026v2 模块，并确认旧版 Portal 模块已关闭（两个模块不要同时启用）。\n\n2. 作用域需勾选“系统框架”、“小米融合定位（com.xiaomi.location.fused）”和“电话服务（com.android.phone，用于隐藏基站信息）”。缺少任一项时，为保护隐私将拒绝启动。\n\n3. 修改模块或作用域后需要重启手机。\n\n4. 重启后打开本应用，点按“重新检测”。</string>
+    <string name="v2_troubleshoot_ok">知道了</string>
+    <string name="v2_running_tip">更换地点前请先停止。已在运行的应用可能缓存了真实位置：建议先在系统设置中强制停止目标应用，再重新打开。</string>
+    <string name="v2_ready_tip">启动前建议先强制停止要使用的目标应用，启动后再打开，避免其沿用之前缓存的真实位置。</string>
+
+    <!-- Home: saved list -->
+    <string name="v2_saved_location_current">当前</string>
+    <string name="v2_saved_location_selected_description">%1$s，当前固定位置</string>
+    <string name="v2_switch_location_title">切换到“%1$s”？</string>
+    <string name="v2_switch_location_message">将先停止当前固定点，再以新地点重新启动。</string>
+    <string name="v2_switch_location_positive">停止并切换</string>
+    <string name="v2_location_actions_copy">复制坐标</string>
+    <string name="v2_location_actions_delete">删除</string>
+    <string name="v2_coordinates_copied">坐标已复制</string>
+    <string name="v2_coordinates_plain">%1$.6f, %2$.6f</string>
+    <string name="v2_map_placeholder">在线地图未启用\n\n可直接点按上方“输入坐标”，粘贴从高德、百度、谷歌等地图复制的坐标；需要在地图上点选时，再启用在线地图。</string>
+    <string name="v2_map_placeholder_failed">在线地图暂时无法加载\n\n可重新加载地图，或直接输入坐标并保存。</string>
+    <string name="v2_start_blocked_telephony">未启动：基站信息保护未就绪。请在 LSPosed 作用域中勾选“电话服务（com.android.phone）”并重启手机，否则应用可通过基站推算真实位置。</string>
+    <string name="v2_start_blocked_xiaomi_fused">未启动：小米融合定位保护未就绪。请在 LSPosed 作用域中勾选 com.xiaomi.location.fused 并重启手机。</string>
+</resources>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="moe.fuqiuluo.locationprobe">
+
+    <uses-sdk
+        android:minSdkVersion="33"
+        android:targetSdkVersion="35" />
+
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_LOCATION_EXTRA_COMMANDS" />
+
+    <application
+        android:allowBackup="false"
+        android:label="Location Probe"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <activity
+            android:name=".ProbeActivity"
+            android:permission="android.permission.DUMP"
+            android:exported="true">
+            <!-- No launcher intent filter: this Activity has no launcher icon. -->
+            <intent-filter>
+                <action android:name="moe.fuqiuluo.locationprobe.action.RUN_CONFIRMED_TEST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -10,6 +10,7 @@ import moe.fuqiuluo.xposed.hooks.LocationManagerHook
 import moe.fuqiuluo.xposed.hooks.LocationServiceHook
 import moe.fuqiuluo.xposed.hooks.fused.AndroidFusedLocationProviderHook
 import moe.fuqiuluo.xposed.hooks.fused.ThirdPartyLocationHook
+import moe.fuqiuluo.xposed.hooks.fused.XiaomiFusedLocationHook
 import moe.fuqiuluo.xposed.hooks.oplus.OplusLocationHook
 import moe.fuqiuluo.xposed.hooks.telephony.miui.MiuiTelephonyManagerHook
 import moe.fuqiuluo.xposed.hooks.sensor.SystemSensorManagerHook
@@ -19,6 +20,10 @@ import moe.fuqiuluo.xposed.utils.FakeLoc
 import moe.fuqiuluo.xposed.utils.Logger
 
 class FakeLocation: IXposedHookLoadPackage, IXposedHookZygoteInit {
+    companion object {
+        private val injectedPackages = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    }
+
     private lateinit var cServiceManager: Class<*> // android.os.ServiceManager
     private val mServiceManagerCache by lazy {
         kotlin.runCatching { cServiceManager.getDeclaredField("sCache") }.onSuccess {
@@ -73,11 +78,9 @@ class FakeLocation: IXposedHookLoadPackage, IXposedHookZygoteInit {
             return
         }
 
-        if(System.getProperty("portal.injected_${lpparam.packageName}") == "true") {
-            return
-        } else {
-            System.setProperty("portal.injected_${lpparam.packageName}", "true")
-        }
+        // Kept in module memory: a system property would be readable by the hooked app
+        // and reveal the module.
+        if (!injectedPackages.add(lpparam.packageName)) return
 
         when (lpparam.packageName) {
             "com.android.phone" -> {
@@ -100,6 +103,7 @@ class FakeLocation: IXposedHookLoadPackage, IXposedHookZygoteInit {
                 AndroidFusedLocationProviderHook(lpparam.classLoader)
             }
             "com.xiaomi.location.fused" -> {
+                XiaomiFusedLocationHook(lpparam.classLoader)
                 ThirdPartyLocationHook(lpparam.classLoader)
             }
             "com.oplus.location" -> {

@@ -1,7 +1,6 @@
 package moe.fuqiuluo.xposed.hooks.fused
 
 import android.location.LocationListener
-import android.os.Bundle
 import de.robv.android.xposed.XposedHelpers
 import moe.fuqiuluo.xposed.BaseLocationHook
 import moe.fuqiuluo.xposed.hooks.blindhook.BlindHookLocation
@@ -38,9 +37,7 @@ object ThirdPartyLocationHook: BaseLocationHook() {
         cNetworkLocationManager.onceHookMethodBefore("onSendExtraCommand") {
             if (FakeLoc.enableDebugLog) {
                 val cmd = args[0] as String
-                val extras = args[1] as Bundle
-
-                Logger.debug("NetworkLocationManager.onSendExtraCommand: $cmd, $extras")
+                Logger.debug("NetworkLocationManager.onSendExtraCommand: $cmd")
             }
             if (FakeLoc.enable) {
                 this.result = false
@@ -68,7 +65,7 @@ object ThirdPartyLocationHook: BaseLocationHook() {
         }
 
         cNetworkLocationManager.hookMethodBefore("updateOffLocEnable") {
-            this.result = Unit
+            if (FakeLoc.enable) this.result = Unit
         }
 
         BlindHookLocation(cNetworkLocationManager, classLoader)
@@ -85,12 +82,23 @@ object ThirdPartyLocationHook: BaseLocationHook() {
             bdLocationClient.hookMethodAfter("requestNLPNormal") {
                 if (FakeLoc.enable) {
                     val bdLocation = result ?: return@hookMethodAfter
-
-                    val jitterLat = FakeLoc.jitterLocation()
-                    XposedHelpers.callMethod(bdLocation, "setLatitude", jitterLat.first)
-                    XposedHelpers.callMethod(bdLocation, "setLongitude", jitterLat.second)
-                    XposedHelpers.callMethod(bdLocation, "setBuildingID", "")
-                    XposedHelpers.callMethod(bdLocation, "setAddrStr", "")
+                    val coordinates = FakeLoc.coordinateSnapshot()
+                    val output = if (FakeLoc.fixedLocationMode) {
+                        coordinates.latitude to coordinates.longitude
+                    } else {
+                        FakeLoc.jitterLocation(coordinates.latitude, coordinates.longitude)
+                    }
+                    runCatching {
+                        XposedHelpers.callMethod(bdLocation, "setLatitude", output.first)
+                        XposedHelpers.callMethod(bdLocation, "setLongitude", output.second)
+                        XposedHelpers.callMethod(bdLocation, "setBuildingID", "")
+                        XposedHelpers.callMethod(bdLocation, "setAddrStr", "")
+                    }.onFailure {
+                        // Do not leave the real third-party object in place if
+                        // the SDK's mutator contract differs on this device.
+                        result = null
+                        Logger.error("Failed to sanitize Baidu location", it)
+                    }
                 }
             }
 

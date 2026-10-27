@@ -18,45 +18,49 @@ import moe.fuqiuluo.xposed.utils.hookMethodAfter
 import moe.fuqiuluo.xposed.utils.toClass
 
 object WlanHook {
+    @Volatile private var wifiHooked = false
+
     operator fun invoke(classLoader: ClassLoader) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // The wifi jar may already have been prefetched into a standalone loader.
             val cSystemServerClassLoaderFactory = XposedHelpers.findClassIfExists("com.android.internal.os.SystemServerClassLoaderFactory", classLoader)
-            if (cSystemServerClassLoaderFactory == null) {
-                Logger.warn("Failed to find SystemServerClassLoaderFactory")
-                return
+            val wifiClassLoader = runCatching {
+                (XposedHelpers.getStaticObjectField(cSystemServerClassLoaderFactory, "sLoadedPaths") as ArrayMap<String, PathClassLoader>)
+                    .firstNotNullOfOrNull { if (it.key.contains("service-wifi.jar")) it.value else null }
+            }.getOrNull()
+            "com.android.server.wifi.WifiServiceImpl".toClass(wifiClassLoader ?: classLoader)?.let {
+                hookWifiServiceImplOnce(it)
             }
-            val sLoadedPaths = XposedHelpers.getStaticObjectField(cSystemServerClassLoaderFactory, "sLoadedPaths") as ArrayMap<String, PathClassLoader>
-            val wifiClassLoader = sLoadedPaths.firstNotNullOfOrNull {
-                if (it.key.contains("service-wifi.jar")) it.value else null
-            }
-            if (wifiClassLoader == null) {
-                Logger.warn("Failed to find wifiClassLoader")
-                return
-            }
-            val wifiClazz = "com.android.server.wifi.WifiServiceImpl".toClass(wifiClassLoader)
-            if (wifiClazz == null) {
-                Logger.warn("Failed to find WifiServiceImpl class")
-                return
-            }
-            hookWifiServiceImpl(wifiClazz)
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val cSystemServiceManager = XposedHelpers.findClassIfExists("com.android.server.SystemServiceManager", classLoader)
-            if (cSystemServiceManager == null) {
-                Logger.warn("Failed to find SystemServiceManager")
-                return
-            }
-            cSystemServiceManager.hookAllMethods("loadClassFromLoader", afterHook {
-                if (args[0] == "com.android.server.wifi.WifiService") {
-                    kotlin.runCatching {
-                        val classloader = args[1] as PathClassLoader
-                        val wifiClazz = classloader.loadClass("com.android.server.wifi.WifiServiceImpl")
-                        hookWifiServiceImpl(wifiClazz)
-                    }.onFailure {
-                        Logger.error("Failed to hook WifiService", it)
-                    }
-                }
-            })
         }
+        if (wifiHooked || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+
+        // Android 11+ starts WifiService from its APEX jar via loadClassFromLoader;
+        // on Android 13 this runs after the "android" package hook, so the
+        // prefetch lookup above is often empty.
+        val cSystemServiceManager = XposedHelpers.findClassIfExists("com.android.server.SystemServiceManager", classLoader)
+        if (cSystemServiceManager == null) {
+            Logger.warn("Failed to find SystemServiceManager")
+            return
+        }
+        val unhooks = cSystemServiceManager.hookAllMethods("loadClassFromLoader", afterHook {
+            if (args[0] == "com.android.server.wifi.WifiService") {
+                kotlin.runCatching {
+                    val classloader = args[1] as ClassLoader
+                    val wifiClazz = classloader.loadClass("com.android.server.wifi.WifiServiceImpl")
+                    hookWifiServiceImplOnce(wifiClazz)
+                }.onFailure {
+                    Logger.error("Failed to hook WifiService", it)
+                }
+            }
+        })
+        if (unhooks.isEmpty()) Logger.error("Failed to hook SystemServiceManager.loadClassFromLoader; Wi-Fi data is not protected")
+    }
+
+    private fun hookWifiServiceImplOnce(wifiClazz: Class<*>) {
+        if (wifiHooked) return
+        wifiHooked = true
+        hookWifiServiceImpl(wifiClazz)
+        Logger.info("WifiServiceImpl hooked")
     }
 
     private fun hookWifiServiceImpl(wifiClazz: Class<*>) {
@@ -67,7 +71,7 @@ object WlanHook {
             if (FakeLoc.enableDebugLog)
                 Logger.debug("In getConnectionInfo with caller: $packageName, state: ${FakeLoc.enableMockWifi}")
 
-            if (FakeLoc.enableMockWifi && !BinderUtils.isSystemPackages(packageName)) {
+            if (FakeLoc.enableMockWifi && !BinderUtils.isPrivacyExemptPackages(packageName)) {
                 val wifiInfo = WifiInfo::class.java.getConstructor().newInstance()
                 XposedHelpers.callMethod(wifiInfo, "setMacAddress", "02:00:00:00:00:00")
                 XposedHelpers.callMethod(wifiInfo, "setBSSID", "02:00:00:00:00:00")
@@ -84,7 +88,7 @@ object WlanHook {
             if (FakeLoc.enableDebugLog)
                 Logger.debug("In getScanResults with caller: $packageName, state: ${FakeLoc.enableMockWifi}")
 
-            if(FakeLoc.enableMockWifi) {
+            if(FakeLoc.enableMockWifi && !BinderUtils.isPrivacyExemptPackages(packageName)) {
                 if(result == null) {
                     return@afterHook 
                 }
@@ -114,9 +118,9 @@ object WlanHook {
                     Logger.error("getScanResults: ParceledListSlice failed", it)
                 }
 
-                if (FakeLoc.enableDebugLog) {
-                    Logger.error("getScanResults: Unknown return type: ${result?.javaClass?.name}")
-                }
+                Logger.error("getScanResults: Unknown return type: ${result?.javaClass?.name}")
+                // Fail closed; WifiManager maps a null slice to an empty list.
+                result = null
             }
         })
     }

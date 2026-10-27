@@ -24,7 +24,7 @@ object MiuiBlurLocationProviderHook: BaseLocationHook() {
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 val hooker: XC_MethodHook.MethodHookParam.() -> Unit = {
-                    if (FakeLoc.enable && !BinderUtils.isSystemAppsCall()) {
+                    if (FakeLoc.enable && !BinderUtils.isPrivacyExemptCall()) {
                         result = CellIdentityCdma::class.java.getConstructor(
                             Int::class.java,
                             Int::class.java,
@@ -50,7 +50,7 @@ object MiuiBlurLocationProviderHook: BaseLocationHook() {
             }
 
             cMiuiBlurLocationManagerImpl.onceHookAllMethod("getBlurryCellInfos", beforeHook {
-                if (FakeLoc.enable && !BinderUtils.isSystemAppsCall()) {
+                if (FakeLoc.enable && !BinderUtils.isPrivacyExemptCall()) {
                     val cellInfos = arrayListOf<CellInfo>()
                     val cellInfo = kotlin.runCatching {
                         CellInfoCdma::class.java.getConstructor().newInstance().also {

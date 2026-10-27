@@ -24,7 +24,12 @@ object LocationManagerHook: BaseLocationHook() {
                     Logger.debug("${param.method.name}: injected!")
                 }
 
-                param.result = injectLocation(param.result as Location)
+                val location = param.result as? Location
+                param.result = if (location != null) {
+                    injectLocation(location)
+                } else {
+                    null
+                }
             }
         }
         if(cLocationManager.declaredMethods.filter {
@@ -51,10 +56,11 @@ object LocationManagerHook: BaseLocationHook() {
                     }
                     is List<*> -> {
                         val locations = param.args[0] as List<*>
-                        param.args[0] = locations.map { injectLocation(it as Location) }
+                        param.args[0] = locations.mapNotNull { it as? Location }.map { injectLocation(it) }
                     }
                     else -> {
                         Logger.error("Unknown method when hook hookOnLocation: ${param.method}")
+                        param.args[0] = null
                     }
                 }
             }

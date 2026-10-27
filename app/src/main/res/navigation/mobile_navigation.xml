@@ -8,19 +8,19 @@
     <fragment
         android:id="@+id/nav_select_location"
         android:name="moe.fuqiuluo.portal.ui.home.SelectLocationFragment"
-        android:label="@string/menu_select_location"
+        android:label="@string/v2_select_location_title"
         tools:layout="@layout/fragment_select_location" />
 
     <fragment
         android:id="@+id/nav_mock"
         android:name="moe.fuqiuluo.portal.ui.mock.MockFragment"
-        android:label="@string/menu_mock"
+        android:label="@string/v2_fixed_location_menu"
         tools:layout="@layout/fragment_mock" />
 
     <fragment
         android:id="@+id/nav_gnss_mock"
         android:name="moe.fuqiuluo.portal.ui.gnss.GnssMockFragment"
-        android:label="@string/menu_gnss_mock"
+        android:label="@string/v2_gnss_menu"
         tools:layout="@layout/fragment_gnss_mock" />
 
     <fragment
@@ -38,6 +38,6 @@
     <fragment
         android:id="@+id/nav_settings"
         android:name="moe.fuqiuluo.portal.ui.settings.SettingsFragment"
-        android:label="@string/menu_setting"
+        android:label="@string/v2_settings_menu"
         tools:layout="@layout/fragment_settings" />
 </navigation>

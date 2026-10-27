@@ -9,64 +9,52 @@ data class HistoricalLocation(
     val lon: Double
 ) {
     companion object {
-        // Format: "name","address","lat","lon"
+        // Accept both legacy unquoted fields and escaped CSV fields.
         fun fromString(str: String): HistoricalLocation {
-            // CSV parser supporting commas inside quoted fields
             val fields = mutableListOf<String>()
             var currentField = StringBuilder()
             var inQuotes = false
-            
-            var i = 0
-            while (i < str.length) {
-                val char = str[i]
+            var index = 0
+            while (index < str.length) {
+                val char = str[index]
                 when {
-                    char == '"' && (i + 1 >= str.length || str[i + 1] != '"') -> {
-                        // Toggle quote state
-                        inQuotes = !inQuotes
-                    }
-                    char == '"' && i + 1 < str.length && str[i + 1] == '"' -> {
-                        // Handle escaped quotes ("") 
+                    inQuotes && char == '"' && index + 1 < str.length && str[index + 1] == '"' -> {
                         currentField.append('"')
-                        // Skip next quote
-                        i++
+                        index++
+                    }
+                    inQuotes && char == '"' -> inQuotes = false
+                    !inQuotes && char == '"' && currentField.isEmpty() -> {
+                        inQuotes = true
                     }
                     char == ',' && !inQuotes -> {
-                        // Comma as separator
                         fields.add(currentField.toString().trim())
                         currentField = StringBuilder()
                     }
-                    else -> {
-                        // Regular character
-                        currentField.append(char)
-                    }
+                    else -> currentField.append(char)
                 }
-                i++
+                index++
             }
-            
-            // Add the last field
+            require(!inQuotes) { "Unclosed quoted location field" }
             fields.add(currentField.toString().trim())
-            
-            if (fields.size != 4) {
-                throw IllegalArgumentException("Invalid format. Expected 4 fields but got ${fields.size}: $str")
-            }
-            
+            require(fields.size == 4) { "Expected four location fields" }
+            val latitude = fields[2].toDouble()
+            val longitude = fields[3].toDouble()
+            require(latitude.isFinite() && latitude in -90.0..90.0) { "Invalid latitude" }
+            require(longitude.isFinite() && longitude in -180.0..180.0) { "Invalid longitude" }
+
             return HistoricalLocation(
-                name = fields[0].trim('"'),
-                address = fields[1].trim('"'),
-                lat = fields[2].trim('"').toDouble(),
-                lon = fields[3].trim('"').toDouble()
+                name = fields[0],
+                address = fields[1],
+                lat = latitude,
+                lon = longitude
             )
         }
     }
 
     override fun toString(): String {
-        val plainLat = BigDecimal(lat).toPlainString()
-        val plainLon = BigDecimal(lon).toPlainString()
-        
-        // Quote fields containing commas
-        val quotedName = if (name.contains(",")) "\"$name\"" else name
-        val quotedAddress = if (address.contains(",")) "\"$address\"" else address
-        
-        return "$quotedName,$quotedAddress,$plainLat,$plainLon"
+        fun quote(value: String): String = "\"${value.replace("\"", "\"\"")}\""
+        val plainLat = BigDecimal.valueOf(lat).toPlainString()
+        val plainLon = BigDecimal.valueOf(lon).toPlainString()
+        return "${quote(name)},${quote(address)},$plainLat,$plainLon"
     }
 }

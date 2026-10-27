@@ -5,30 +5,13 @@ import android.content.Context
 import com.baidu.location.LocationClient
 import com.baidu.mapapi.CoordType
 import com.baidu.mapapi.SDKInitializer
-import com.tencent.bugly.crashreport.CrashReport
-import moe.fuqiuluo.portal.android.Bugly
 
 class Portal: Application() {
 
     override fun onCreate() {
         super.onCreate()
 
-        SDKInitializer.setAgreePrivacy(this, true)
-        LocationClient.setAgreePrivacy(true)
-
-        SDKInitializer.initialize(this)
-        SDKInitializer.setCoordType(DEFAULT_COORD_TYPE)
-
-        CrashReport.initCrashReport(applicationContext)
-
-        CrashReport.setUserId(applicationContext, Bugly.getUniqueDeviceId(applicationContext))
-        CrashReport.setDeviceId(applicationContext, Bugly.getUniqueDeviceId(applicationContext))
-        CrashReport.setDeviceModel(applicationContext, Bugly.getDeviceModel())
-        CrashReport.setCollectPrivacyInfo(applicationContext, true)
-
         appContext = applicationContext
-
-        //CrashReport.setAllThreadStackEnable(applicationContext, true, true)
     }
 
     companion object {
@@ -36,6 +19,21 @@ class Portal: Application() {
         const val DEFAULT_COORD_STR = "GCJ02"
 
         lateinit var appContext: Context
+        @Volatile private var onlineMapInitialized = false
+
+        /** Call only after the user has explicitly chosen to enable the online map. */
+        fun initializeOnlineMap(): Boolean = synchronized(this) {
+            if (onlineMapInitialized) return@synchronized true
+            runCatching {
+                SDKInitializer.setAgreePrivacy(appContext, true)
+                LocationClient.setAgreePrivacy(true)
+                SDKInitializer.initialize(appContext)
+                SDKInitializer.setCoordType(DEFAULT_COORD_TYPE)
+                onlineMapInitialized = true
+            }.isSuccess
+        }
+
+        fun isOnlineMapInitialized(): Boolean = onlineMapInitialized
         //val DEFAULT_COORD_TYPE = CoordType.BD09LL
         //const val DEFAULT_COORD_STR = "bd09ll"
     }

@@ -5,24 +5,12 @@
 
     <group android:checkableBehavior="single">
         <item
-            android:id="@+id/nav_select_location"
-            android:icon="@drawable/baseline_edit_location_alt_24"
-            android:title="@string/menu_select_location" />
-        <item
             android:id="@+id/nav_mock"
             android:icon="@drawable/baseline_label_important_24"
-            android:title="@string/menu_mock" />
-        <item
-            android:id="@+id/nav_gnss_mock"
-            android:icon="@drawable/baseline_satellite_alt_24"
-            android:title="@string/menu_gnss_mock" />
-        <item
-            android:id="@+id/nav_route_gallery"
-            android:icon="@drawable/baseline_route_24"
-            android:title="@string/menu_route_mock" />
+            android:title="@string/v2_fixed_location_menu" />
         <item
             android:id="@+id/nav_settings"
             android:icon="@drawable/baseline_settings_24"
-            android:title="@string/menu_setting" />
+            android:title="@string/v2_settings_menu" />
     </group>
 </menu>

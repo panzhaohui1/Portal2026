@@ -1,6 +1,7 @@
 package moe.fuqiuluo.portal.ext
 
 import android.content.Context
+import android.os.Build
 import androidx.core.content.edit
 import com.alibaba.fastjson2.JSON
 import com.baidu.mapapi.map.BaiduMap
@@ -15,7 +16,7 @@ val Context.sharedPrefs
 var Context.selectLocation: HistoricalLocation?
     get() {
         return sharedPrefs.getString("selectedLocation", null)?.let {
-            HistoricalLocation.fromString(it)
+            runCatching { HistoricalLocation.fromString(it) }.getOrNull()
         }
     }
     set(value) = sharedPrefs.edit {
@@ -41,8 +42,8 @@ var Context.selectRoute: HistoricalRoute?
 
 val Context.historicalLocations: List<HistoricalLocation>
     get() {
-        return sharedPrefs.getStringSet("locations", emptySet())?.map {
-            HistoricalLocation.fromString(it)
+        return sharedPrefs.getStringSet("locations", emptySet())?.mapNotNull {
+            runCatching { HistoricalLocation.fromString(it) }.getOrNull()
         } ?: emptyList()
     }
 
@@ -167,7 +168,12 @@ var Context.disableRegisterLocationListener: Boolean
     }
 
 var Context.disableFusedProvider: Boolean
-    get() = sharedPrefs.getBoolean("disableFusedProvider", FakeLoc.disableFusedLocation)
+    get() = sharedPrefs.getBoolean(
+        "disableFusedProvider",
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.TIRAMISU &&
+            Build.MANUFACTURER.equals("Xiaomi", ignoreCase = true) && Build.DEVICE == "umi"
+        ) false else FakeLoc.disableFusedLocation,
+    )
     set(value) = sharedPrefs.edit {
         putBoolean("disableFusedProvider", value)
         FakeLoc.disableFusedLocation = value
@@ -228,3 +234,12 @@ var Context.loopBroadcastlocation: Boolean
     }
 
 
+
+/** Coordinate system last used in manual entry; stored locations are always WGS84. */
+var Context.manualCoordSystem: CoordSystem
+    get() = sharedPrefs.getString("manualCoordSystem", null)
+        ?.let { name -> CoordSystem.entries.firstOrNull { it.name == name } }
+        ?: CoordSystem.WGS84
+    set(value) = sharedPrefs.edit {
+        putString("manualCoordSystem", value.name)
+    }

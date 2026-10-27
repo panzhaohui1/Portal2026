@@ -4,7 +4,6 @@ import android.app.Activity
 import android.location.LocationManager
 import android.util.Log
 import androidx.lifecycle.ViewModel
-import com.tencent.bugly.crashreport.CrashReport
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -54,13 +53,11 @@ class MockServiceViewModel : ViewModel() {
         if (!::rockerJob.isInitialized || rockerJob.isCancelled) {
             rockerCoroutineController.pause()
             val delayTime = activity.reportDuration.toLong()
-            val applicationContext = activity.applicationContext
             rockerJob = GlobalScope.launch {
                 do {
                     rockerCoroutineController.controlledCoroutine()
                     delay(delayTime)
 
-                    CrashReport.setUserSceneTag(applicationContext, 261773)
                     if(!MockServiceHelper.move(locationManager!!, FakeLoc.speed / (1000 / delayTime) / 0.85, FakeLoc.bearing)) {
                         Log.e("MockServiceViewModel", "Failed to move")
                     }
@@ -158,7 +155,6 @@ class MockServiceViewModel : ViewModel() {
                         azimuth += 360
                     }
 
-                    Log.d("MockServiceViewModel", "从 $currentLat, $currentLon 移动到 ${target.first}, ${target.second}, 方位角: $azimuth")
                     if (!MockServiceHelper.move(
                             locationManager!!,
                             FakeLoc.speed / (1000 / delayTime) / 0.85,

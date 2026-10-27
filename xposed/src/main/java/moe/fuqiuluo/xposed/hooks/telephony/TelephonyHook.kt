@@ -23,13 +23,24 @@ import moe.fuqiuluo.xposed.utils.hookMethodBefore
 import moe.fuqiuluo.xposed.utils.onceHookDoNothingMethod
 import moe.fuqiuluo.xposed.utils.onceHookMethodBefore
 import java.lang.reflect.Modifier
+import kotlin.concurrent.thread
 
 
 object TelephonyHook: BaseTelephonyHook() {
     operator fun invoke(classLoader: ClassLoader) {
-        if(!initDivineService("TelephonyHook")) {
+        // The phone process can start before the location service accepts the
+        // proxy. Hooks stay inert until the session state arrives, so install them
+        // now and keep retrying registration in the background: a fixed start on
+        // Xiaomi is refused until this proxy exists.
+        thread(name = "PortalTelephonySync", isDaemon = true) {
+            repeat(36) {
+                if (initDivineService("TelephonyHook")) {
+                    Logger.info("TelephonyHook proxy registered")
+                    return@thread
+                }
+                Thread.sleep(5_000)
+            }
             Logger.error("Failed to init mock service in TelephonyHook")
-            return
         }
 
 //        kotlin.runCatching {
@@ -91,6 +102,8 @@ object TelephonyHook: BaseTelephonyHook() {
         val cPhoneInterfaceManager = XposedHelpers.findClassIfExists("com.android.phone.PhoneInterfaceManager", classLoader)
             ?: return
 
+        // Phone/network type faking keeps the broad system-app exemption: preinstalled
+        // SMS and carrier apps rely on the real radio type, and it reveals no location.
         val hookGetPhoneTyp = beforeHook {
             if (FakeLoc.enable && !BinderUtils.isSystemAppsCall()) {
                 if (FakeLoc.enableDebugLog) {
@@ -114,7 +127,7 @@ object TelephonyHook: BaseTelephonyHook() {
                     Logger.debug("getAllCellInfo: injected! caller = ${BinderUtils.getCallerUid()}")
                 }
 
-                if (FakeLoc.enable && !BinderUtils.isSystemAppsCall()) {
+                if (FakeLoc.enable && !BinderUtils.isPrivacyExemptCall()) {
                     val cResult = arrayListOf<CellInfo>()
                     val cellInfo = kotlin.runCatching {
                         CellInfoCdma::class.java.getConstructor().newInstance().also {
@@ -140,8 +153,33 @@ object TelephonyHook: BaseTelephonyHook() {
             }
         }
 
+        // requestCellInfoUpdate delivers fresh cell identities through a callback
+        // instead of a return value, so getAllCellInfo alone does not cover it.
+        listOf("requestCellInfoUpdate", "requestCellInfoUpdateWithWorkSource").forEach { name ->
+            val unhooks = cPhoneInterfaceManager.hookAllMethods(name, beforeHook {
+                if (!FakeLoc.enable || BinderUtils.isPrivacyExemptCall()) return@beforeHook
+                val callback = args.firstOrNull { arg ->
+                    arg != null && arg.javaClass.interfaces.any { it.name == "android.telephony.ICellInfoCallback" }
+                } ?: return@beforeHook
+                runCatching { XposedHelpers.callMethod(callback, "onCellInfo", ArrayList<CellInfo>()) }
+                    .onFailure { Logger.error("Failed to answer $name with empty cell info", it) }
+                // Never fall through to the real modem query while the session is active.
+                result = null
+            })
+            if (unhooks.isEmpty()) Logger.warn("Hook PhoneInterfaceManager.$name failed")
+        }
+
+        // ServiceState carries NetworkRegistrationInfo with the serving CellIdentity.
+        listOf("getServiceState", "getServiceStateForSubscriber").forEach { name ->
+            cPhoneInterfaceManager.hookAllMethods(name, afterHook {
+                if (!FakeLoc.enable || BinderUtils.isPrivacyExemptCall()) return@afterHook
+                val serviceState = result ?: return@afterHook
+                result = sanitizeServiceState(serviceState)
+            })
+        }
+
         if(XposedBridge.hookAllMethods(cPhoneInterfaceManager, "getCellLocation", afterHook {
-                if (!FakeLoc.enable || BinderUtils.isSystemAppsCall()) {
+                if (!FakeLoc.enable || BinderUtils.isPrivacyExemptCall()) {
                     return@afterHook
                 }
                 if (FakeLoc.enableDebugLog) {
@@ -204,7 +242,7 @@ object TelephonyHook: BaseTelephonyHook() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             if (cPhoneInterfaceManager.hookAllMethods("getNeighboringCellInfo", beforeHook {
-                if (!FakeLoc.enable || BinderUtils.isSystemAppsCall()) {
+                if (!FakeLoc.enable || BinderUtils.isPrivacyExemptCall()) {
                     return@beforeHook
                 }
 
@@ -233,6 +271,19 @@ object TelephonyHook: BaseTelephonyHook() {
 
     }
 
+    /**
+     * Uses the platform's own sanitizer, as TelephonyRegistry does for apps without
+     * fine location: cell identities are removed, operator names (country-level) kept
+     * so the status bar carrier label is unaffected.
+     */
+    private fun sanitizeServiceState(serviceState: Any): Any? = runCatching {
+        XposedHelpers.callMethod(serviceState, "createLocationInfoSanitizedCopy", false)
+    }.getOrElse {
+        Logger.error("Failed to sanitize ServiceState", it)
+        // Fail closed: an app receiving no ServiceState is better than a real cell identity.
+        null
+    }
+
     fun hookTelephonyRegistry(cTelephonyRegistry: Class<*>) {
         cTelephonyRegistry.declaredMethods.filter { (it.name == "listen" || it.name == "listenWithEventList") && !Modifier.isAbstract(it.modifiers) }
             .map {
@@ -244,7 +295,7 @@ object TelephonyHook: BaseTelephonyHook() {
                     return@forEach
                 }
                 m.hookBefore {
-                    if (!FakeLoc.enable || BinderUtils.isSystemAppsCall()) {
+                    if (!FakeLoc.enable || BinderUtils.isPrivacyExemptCall()) {
                         return@hookBefore
                     }
 
@@ -294,6 +345,17 @@ object TelephonyHook: BaseTelephonyHook() {
                     if (!hasHookOnCellLocationChanged) {
                         Logger.error("Hook onCellLocationChanged failed")
                     }
+                    // Real neighbouring and serving cells reach listeners through these callbacks.
+                    listener.javaClass.onceHookMethodBefore("onCellInfoChanged", List::class.java) {
+                        if (FakeLoc.enable) args[0] = ArrayList<CellInfo>()
+                    } ?: Logger.error("Hook onCellInfoChanged failed")
+                    listener.javaClass.declaredMethods.firstOrNull {
+                        it.name == "onServiceStateChanged" && it.parameterTypes.size == 1
+                    }?.let { method ->
+                        listener.javaClass.onceHookMethodBefore("onServiceStateChanged", method.parameterTypes[0]) {
+                            if (FakeLoc.enable) args[0]?.let { args[0] = sanitizeServiceState(it) }
+                        }
+                    }
                     listener.javaClass.onceHookDoNothingMethod("onSignalStrengthChanged", Int::class.java) {
                         FakeLoc.enable
                     }
@@ -302,7 +364,7 @@ object TelephonyHook: BaseTelephonyHook() {
             }
 
         cTelephonyRegistry.hookMethodBefore("notifyCellInfo", List::class.java) {
-            if (!FakeLoc.enable || BinderUtils.isSystemAppsCall()) {
+            if (!FakeLoc.enable || BinderUtils.isPrivacyExemptCall()) {
                 return@hookMethodBefore
             }
 
@@ -332,7 +394,7 @@ object TelephonyHook: BaseTelephonyHook() {
         }
 
         cTelephonyRegistry.hookMethodBefore("notifyCellInfoForSubscriber", Int::class.java, List::class.java) {
-            if (!FakeLoc.enable || BinderUtils.isSystemAppsCall()) {
+            if (!FakeLoc.enable || BinderUtils.isPrivacyExemptCall()) {
                 return@hookMethodBefore
             }
 
@@ -362,7 +424,7 @@ object TelephonyHook: BaseTelephonyHook() {
         }
 
         cTelephonyRegistry.hookMethodBefore("notifyCellLocation", Bundle::class.java) {
-            if (!FakeLoc.enable || BinderUtils.isSystemAppsCall()) {
+            if (!FakeLoc.enable || BinderUtils.isPrivacyExemptCall()) {
                 return@hookMethodBefore
             }
 
@@ -387,7 +449,7 @@ object TelephonyHook: BaseTelephonyHook() {
             }
         }
         cTelephonyRegistry.hookMethodBefore("notifyCellLocationForSubscriber", Int::class.java, Bundle::class.java) {
-            if (!FakeLoc.enable || BinderUtils.isSystemAppsCall()) {
+            if (!FakeLoc.enable || BinderUtils.isPrivacyExemptCall()) {
                 return@hookMethodBefore
             }
 
@@ -433,7 +495,7 @@ object TelephonyHook: BaseTelephonyHook() {
         val TRANSACTION_getSimStateForSlotIdx = kotlin.runCatching { XposedHelpers.getStaticIntField(cISub, "TRANSACTION_getSimStateForSlotIdx") }.getOrDefault(-1)
 
         val hookOnTransact = beforeHook {
-            if (!FakeLoc.enable || BinderUtils.isSystemAppsCall()) {
+            if (!FakeLoc.enable || BinderUtils.isPrivacyExemptCall()) {
                 return@beforeHook
             }
 

@@ -16,7 +16,6 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- 允许程序改变Wi-Fi连接状态 -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
 
     <!-- 访问网络，进行地图相关业务数据请求，包括地图数据，路线规划，POI检索等 -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -36,11 +35,11 @@
 
     <application
         android:name=".Portal"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
+        android:label="@string/app_name_v2"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
@@ -48,7 +47,6 @@
         tools:targetApi="31">
         <activity
             android:name=".MainActivity"
-            android:configChanges="orientation|screenSize"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -73,34 +71,13 @@
             android:value="true" />
         <meta-data
             android:name="xposeddescription"
-            android:value="System Location Provider" />
+            android:value="Portal2026v2 System Location Provider" />
         <meta-data
             android:name="xposedminversion"
             android:value="93" />
         <meta-data
             android:name="xposedscope"
             android:resource="@array/xposed_scope" />
-
-        <!-- 配置Bugly -->
-        <!-- 配置APP ID -->
-        <meta-data
-            android:name="BUGLY_APPID"
-            android:value="${BUGLY_APPID}" />
-        <!-- 配置APP版本号 -->
-        <meta-data
-            android:name="BUGLY_APP_VERSION"
-            android:value="${APP_VERSION}" />
-        <!-- 配置APP渠道号 -->
-        <meta-data
-            android:name="BUGLY_APP_CHANNEL"
-            android:value="${APP_CHANNEL}" />
-        <!-- 配置Bugly调试模式（true或者false）-->
-        <meta-data
-            android:name="BUGLY_ENABLE_DEBUG"
-            android:value="${BUGLY_ENABLE_DEBUG}" />
-        <meta-data
-            android:name="BUGLY_BUILD_ENV"
-            android:value="${BUGLY_BUILD_ENV}" />
 
         <!--适配华为（huawei）刘海屏-->
         <meta-data

@@ -1,3 +1,16 @@
+# Portal2026v2
+
+<img src="assets/branding/portal2026v2-launcher.png" width="128" alt="Portal2026v2 图标">
+
+Portal2026v2 是面向已 Root Android 设备的固定位置工具，使用 LSPosed 接入系统定位服务。新版可与原版应用并存，提供地图选点、手动坐标输入、已保存地点和固定位置状态提示。
+
+- 手动输入支持 WGS84、GCJ-02 和 BD-09；在线地图需要主动启用。
+- 运行前需要启用对应模块并配置作用域，具体步骤见[使用指南](docs/Portal2026v2_使用指南.md)。
+- 模拟位置不能消除 IP、蓝牙或其他来源提供的位置线索；请在实际设备和目标应用上验证。
+- 构建需要 JDK 17 和 Android SDK，调试构建使用本机 Debug 签名。
+
+以下保留原项目的历史说明和致谢；其中的行为描述可能不适用于当前版本。
+
 # Portal 学习练手
 
 The virtual positioning module based on LSPosed only provides Hook system services to achieve virtual positioning, and cannot be integrated into the APP.

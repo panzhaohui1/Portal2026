@@ -1,50 +1,143 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
 
-    <com.google.android.material.textfield.TextInputLayout
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:boxBackgroundMode="filled"
-        app:boxBackgroundColor="@color/white"
-        android:hint="@string/input_lat">
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="4dp">
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/editTextLatitude"
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:imeOptions="actionNext"
-            android:inputType="text"
-            android:singleLine="true"
-            android:textColor="@color/portal_text_color"
-            android:textAppearance="@style/TextAppearance.MaterialComponents.Body2">
+            android:text="@string/v2_coord_system_label"
+            android:textColor="@color/icon_grey"
+            android:textSize="13sp" />
 
-        </com.google.android.material.textfield.TextInputEditText>
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <com.google.android.material.textfield.TextInputLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        app:boxBackgroundMode="filled"
-        app:boxBackgroundColor="@color/white"
-        android:hint="@string/input_lon">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/editTextLongitude"
+        <com.google.android.material.button.MaterialButtonToggleGroup
+            android:id="@+id/toggleCoordSystem"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:imeOptions="actionNext"
-            android:inputType="text"
-            android:singleLine="true"
-            android:textColor="@color/portal_text_color"
-            android:textAppearance="@style/TextAppearance.MaterialComponents.Body2">
+            android:layout_marginTop="6dp"
+            app:checkedButton="@id/btnCoordWgs84"
+            app:selectionRequired="true"
+            app:singleSelection="true">
 
-        </com.google.android.material.textfield.TextInputEditText>
-    </com.google.android.material.textfield.TextInputLayout>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCoordWgs84"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minHeight="48dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:text="@string/v2_coord_wgs84"
+                android:textAllCaps="false"
+                android:textSize="12sp" />
 
-</LinearLayout>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCoordGcj02"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minHeight="48dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:text="@string/v2_coord_gcj02"
+                android:textAllCaps="false"
+                android:textSize="12sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCoordBd09"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minHeight="48dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:text="@string/v2_coord_bd09"
+                android:textAllCaps="false"
+                android:textSize="12sp" />
+        </com.google.android.material.button.MaterialButtonToggleGroup>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/layoutPasteCoordinates"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:hint="@string/v2_paste_coordinates_hint"
+            app:boxBackgroundColor="@color/white"
+            app:boxBackgroundMode="filled"
+            app:helperText="@string/v2_paste_coordinates_helper">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editTextPasteCoordinates"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:imeOptions="actionNext"
+                android:inputType="text"
+                android:singleLine="true"
+                android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
+                android:textColor="@color/portal_text_color" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="@string/v2_latitude_hint"
+            app:boxBackgroundColor="@color/white"
+            app:boxBackgroundMode="filled">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editTextLatitude"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:digits="0123456789.-"
+                android:imeOptions="actionNext"
+                android:inputType="numberSigned|numberDecimal"
+                android:singleLine="true"
+                android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
+                android:textColor="@color/portal_text_color" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="@string/v2_longitude_hint"
+            app:boxBackgroundColor="@color/white"
+            app:boxBackgroundMode="filled">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editTextLongitude"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:digits="0123456789.-"
+                android:imeOptions="actionDone"
+                android:inputType="numberSigned|numberDecimal"
+                android:singleLine="true"
+                android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
+                android:textColor="@color/portal_text_color" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:id="@+id/textCoordinatePreview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:accessibilityLiveRegion="polite"
+            android:text="@string/v2_coordinate_preview_empty"
+            android:textColor="@color/portal_hint_color"
+            android:textSize="13sp" />
+    </LinearLayout>
+</ScrollView>

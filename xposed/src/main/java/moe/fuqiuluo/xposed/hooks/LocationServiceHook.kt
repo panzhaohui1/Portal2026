@@ -4,9 +4,8 @@
 package moe.fuqiuluo.xposed.hooks
 
 import android.location.Location
-import android.os.Build
+import android.location.LocationManager
 import android.os.Bundle
-import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.IInterface
 import android.os.Parcel
@@ -21,18 +20,19 @@ import moe.fuqiuluo.xposed.hooks.miui.MiuiLocationManagerHook
 import moe.fuqiuluo.xposed.hooks.telephony.miui.MiuiTelephonyManagerHook
 import moe.fuqiuluo.xposed.hooks.nmea.LocationNMEAHook
 import moe.fuqiuluo.xposed.hooks.provider.LocationProviderManagerHook
+import moe.fuqiuluo.xposed.hooks.provider.FixedGpsDispatcher
 import moe.fuqiuluo.xposed.utils.FakeLoc
+import moe.fuqiuluo.xposed.utils.FixedNetworkFallback
 import moe.fuqiuluo.xposed.utils.BinderUtils
 import moe.fuqiuluo.xposed.utils.Logger
+import moe.fuqiuluo.xposed.utils.PortalIpc
 import moe.fuqiuluo.xposed.utils.afterHook
 import moe.fuqiuluo.xposed.utils.beforeHook
 import moe.fuqiuluo.xposed.utils.hookAllMethods
 import moe.fuqiuluo.xposed.utils.onceHookAllMethod
-import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.concurrent.thread
 import kotlin.random.Random
 import kotlin.uuid.ExperimentalUuidApi
 
@@ -157,6 +157,10 @@ data class MockGnssData(
 
 internal object LocationServiceHook: BaseLocationHook() {
     val locationListeners = LinkedBlockingQueue<Pair<String, IInterface>>()
+    private val hookedListenerClasses = mutableSetOf<Class<*>>()
+    @Volatile private var lastLocationHookReady = false
+
+    fun isLastLocationHookReady(): Boolean = lastLocationHookReady
 
     // A random command is generated to prevent some apps from detecting Portal
     operator fun invoke(classLoader: ClassLoader) {
@@ -166,10 +170,10 @@ internal object LocationServiceHook: BaseLocationHook() {
         } else {
             onService(cLocationManagerService)
         }
-        startDaemon(classLoader)
     }
 
     fun onService(cILocationManager: Class<*>) {
+        lastLocationHookReady = false
         // Got instance of ILocationManager.Stub here, you can hook it
         // Not directly Class.forName because of this thing, it can't be reflected, even if I'm system_server?!?!
 
@@ -189,7 +193,16 @@ internal object LocationServiceHook: BaseLocationHook() {
 
         LocationNMEAHook(cILocationManager)
 
-        if(cILocationManager.hookAllMethods("getLastLocation", afterHook {
+        val lastRequestClass = XposedHelpers.findClassIfExists(
+            "android.location.LastLocationRequest", cILocationManager.classLoader,
+        )
+        val expectedLastMethod = lastRequestClass?.let {
+            XposedHelpers.findMethodExactIfExists(
+                cILocationManager, "getLastLocation", String::class.java, it,
+                String::class.java, String::class.java,
+            )
+        }
+        val lastHooks = cILocationManager.hookAllMethods("getLastLocation", afterHook {
                 // android 7.0.0 ~ 10.0.0
                 // Location getLastLocation(in LocationRequest request, String packageName);
                 // android 11.0.0
@@ -203,17 +216,54 @@ internal object LocationServiceHook: BaseLocationHook() {
                 // Route Simulation: Move according to a preset route
                 //val uid = FqlUtils.getCallerUid()
                 // Determine whether it is an app that needs a hook
-                if (!FakeLoc.enable) return@afterHook
+                // Preserve Android's permission and argument failures instead
+                // of turning a rejected request into a synthetic success.
+                if (!FakeLoc.enable || hasThrowable()) return@afterHook
 
-                // It can't be null, because I'm judging in the previous step
-                val location = result as? Location ?: Location("gps")
+                // A null may mean AppOps denial or an empty cache. On the
+                // verified Xiaomi only, an allowed caller can ask for GPS
+                // under the same Binder caller before constructing a fixed
+                // network-labelled result. No raw GPS fields are copied.
+                if (result == null && expectedLastMethod != null && method == expectedLastMethod && args.size == 4) {
+                    val fallback = FixedGpsDispatcher.withActiveFixedSession {
+                        FixedNetworkFallback.resolve(
+                            FixedNetworkFallback.Request(
+                                verifiedDevice = FixedGpsDispatcher.isVerifiedTestDevice(),
+                                activeFixedSession = FakeLoc.enable && FakeLoc.fixedLocationMode,
+                                networkBlocked = FakeLoc.disableNetworkLocation,
+                                provider = args[0] as? String,
+                                callerFingerprint = FixedNetworkFallback.packageFingerprint(args[2] as? String),
+                            ),
+                            queryApprovedGps = {
+                                val gpsArgs = args.copyOf()
+                                gpsArgs[0] = LocationManager.GPS_PROVIDER
+                                XposedBridge.invokeOriginalMethod(method, thisObject, gpsArgs) as? Location
+                            },
+                            sanitizeAsNetwork = {
+                                check(FakeLoc.enable && FakeLoc.fixedLocationMode)
+                                injectLocation(Location(LocationManager.GPS_PROVIDER)).apply {
+                                    provider = LocationManager.NETWORK_PROVIDER
+                                }
+                            },
+                        )
+                    }
+                    if (fallback != null) result = fallback
+                    return@afterHook
+                }
+
+                // Other null results retain the platform's decision.
+                val location = result as? Location ?: return@afterHook
 
                 result = injectLocation(location)
 
                 if(FakeLoc.enableDebugLog) {
-                    Logger.debug("getLastLocation: injected! $result")
+                    Logger.debug("getLastLocation: injected")
                 }
-        }).isEmpty()) {
+        })
+        lastLocationHookReady = expectedLastMethod != null &&
+            expectedLastMethod.returnType == Location::class.java &&
+            lastHooks.any { it.hookedMethod == expectedLastMethod }
+        if (!lastLocationHookReady) {
             Logger.error("hook getLastLocation failed")
         }
 
@@ -272,10 +322,6 @@ internal object LocationServiceHook: BaseLocationHook() {
             //}
             // android 12 and later
             // remove this method
-            val provider = kotlin.runCatching {
-                XposedHelpers.callMethod(args[0], "getProvider") as? String
-            }.getOrNull() ?: "gps"
-
             val listener = args.filterIsInstance<IInterface>().firstOrNull() ?: run {
                 Logger.error("requestLocationUpdates: listener is null: $method")
                 return@beforeHook
@@ -285,17 +331,9 @@ internal object LocationServiceHook: BaseLocationHook() {
                 Logger.debug("requestLocationUpdates: injected! $listener")
             }
 
-            addLocationListenerInner(provider, listener)
-
-            if (FakeLoc.disableRegisterLocationListener || FakeLoc.enable) {
-                result = null
-                return@beforeHook
-            }
-
-            if (FakeLoc.disableFusedLocation && provider == "fused") {
-                result = null
-                return@beforeHook
-            }
+            // The platform must validate and own this registration. Hooking
+            // its eventual callback sanitizes data without bypassing AppOps.
+            if (!hookILocationListener(listener) && FakeLoc.enable) result = null
         })
         cILocationManager.hookAllMethods("removeUpdates", afterHook {
             val listener = args.filterIsInstance<IInterface>().firstOrNull() ?: run {
@@ -318,13 +356,7 @@ internal object LocationServiceHook: BaseLocationHook() {
             //    void onProviderEnabledChanged(String provider, boolean enabled);
             //    void onFlushComplete(int requestCode);
             //}
-            val provider = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                kotlin.runCatching {
-                    XposedHelpers.callMethod(args[1], "getProvider") as? String
-                }.getOrNull()
-            } else {
-                args[0] as? String
-            } ?: "gps"
+            val provider = args.getOrNull(0) as? String ?: return@beforeHook
             val listener = args.filterIsInstance<IInterface>().firstOrNull() ?: run {
                 Logger.error("registerLocationListener: listener is null: $method")
                 return@beforeHook
@@ -334,14 +366,19 @@ internal object LocationServiceHook: BaseLocationHook() {
                 Logger.debug("registerLocationListener: injected! $listener, from ${BinderUtils.getUidPackageNames()}")
             }
 
-            addLocationListenerInner(provider, listener)
-
-            if (FakeLoc.disableRegisterLocationListener) {
+            // Do not send directly to listeners: Android applies AppOps and
+            // foreground checks at delivery time, not just at registration.
+            if (!hookILocationListener(listener) && FakeLoc.enable) {
                 result = null
                 return@beforeHook
             }
 
-            if (FakeLoc.disableFusedLocation && provider == "fused") {
+            if (FakeLoc.enable && FakeLoc.disableRegisterLocationListener) {
+                result = null
+                return@beforeHook
+            }
+
+            if (FakeLoc.enable && FakeLoc.disableFusedLocation && provider == "fused") {
                 result = null
                 return@beforeHook
             }
@@ -379,14 +416,14 @@ internal object LocationServiceHook: BaseLocationHook() {
                         Logger.debug("onLocationBatch: injected!")
                     }
 
-                    val location = (args[0] ?: return@onLocationBatch) as Location
-                    args[0] = injectLocation(location)
+                    val location = args[0] as? Location
+                    args[0] = location?.let { injectLocation(it) }
                 })
             })
         }
 
         cILocationManager.hookAllMethods("requestGeofence", beforeHook {
-            if (FakeLoc.disableRequestGeofence && !FakeLoc.enableAGPS) {
+            if (FakeLoc.enable && FakeLoc.disableRequestGeofence && !FakeLoc.enableAGPS) {
                 if(FakeLoc.enableDebugLog) {
                     Logger.debug("requestGeofence: injected!")
                 }
@@ -397,7 +434,7 @@ internal object LocationServiceHook: BaseLocationHook() {
 //        })
 
         cILocationManager.hookAllMethods("getFromLocation", beforeHook {
-            if (FakeLoc.disableGetFromLocation && !FakeLoc.enableAGPS) {
+            if (FakeLoc.enable && FakeLoc.disableGetFromLocation && !FakeLoc.enableAGPS) {
                 if(FakeLoc.enableDebugLog) {
                     Logger.debug("getFromLocation: injected!")
                 }
@@ -406,7 +443,7 @@ internal object LocationServiceHook: BaseLocationHook() {
         })
 
         cILocationManager.hookAllMethods("getFromLocationName", beforeHook {
-            if (FakeLoc.disableGetFromLocation && !FakeLoc.enableAGPS) {
+            if (FakeLoc.enable && FakeLoc.disableGetFromLocation && !FakeLoc.enableAGPS) {
                 if(FakeLoc.enableDebugLog) {
                     Logger.debug("getFromLocationName: injected!")
                 }
@@ -460,10 +497,6 @@ internal object LocationServiceHook: BaseLocationHook() {
                     if(FakeLoc.enableDebugLog) {
                         Logger.debug("registerGnssStatusCallback: injected!")
                     }
-                    if (!FakeLoc.enableMockGnss) {
-                        return
-                    }
-
                     if (cIGnssStatusListener.onceHookAllMethod("onSvStatusChanged", beforeHook {
                         // android 7.0.0
                         // void onSvStatusChanged(int svCount, in int[] svidWithFlags, in float[] cn0s,
@@ -610,8 +643,7 @@ internal object LocationServiceHook: BaseLocationHook() {
                     return@beforeHook
                 }
 
-                addLocationListenerInner("GnssBatch", listener)
-                hookILocationListener(listener)
+                if (!hookILocationListener(listener) && FakeLoc.enable) result = null
             }
         })
         cILocationManager.hookAllMethods("stopGnssBatch", beforeHook {
@@ -635,13 +667,11 @@ internal object LocationServiceHook: BaseLocationHook() {
                     return@beforeHook
                 }
 
-                addLocationListenerInner("gps", listener)
-
                 if (FakeLoc.disableRegisterLocationListener || FakeLoc.enable) {
                     result = null
                 }
 
-                hookILocationListener(listener)
+                if (!hookILocationListener(listener) && FakeLoc.enable) result = null
             }
         })
 
@@ -693,38 +723,60 @@ internal object LocationServiceHook: BaseLocationHook() {
 //            }
 //        })
 
+        val currentLocationCallbacks = java.util.Collections.synchronizedSet(mutableSetOf<Class<*>>())
         cILocationManager.hookAllMethods("getCurrentLocation", beforeHook {
-            val callback = args[2] ?: return@beforeHook
+            val callback = args.getOrNull(2) ?: run {
+                if (FakeLoc.enable) result = null
+                return@beforeHook
+            }
 
             if (FakeLoc.enableDebugLog) {
                 Logger.debug("getCurrentLocation: injected!")
             }
 
-            if (FakeLoc.disableGetCurrentLocation) {
+            if (FakeLoc.enable && FakeLoc.disableGetCurrentLocation) {
                 result = null
                 return@beforeHook
             }
 
             val classCallback = callback.javaClass
-            classCallback.onceHookAllMethod("onLocation", beforeHook onLocation@ {
-                val location = args[0] as? Location ?: return@onLocation
+            synchronized(currentLocationCallbacks) {
+                if (currentLocationCallbacks.contains(classCallback)) return@beforeHook
+                val installed = kotlin.runCatching {
+                    classCallback.onceHookAllMethod("onLocation", beforeHook onLocation@ {
+                        if (args.isEmpty()) return@onLocation
+                        val location = args[0] as? Location ?: run {
+                            args[0] = null
+                            return@onLocation
+                        }
 
-                if (FakeLoc.enableDebugLog) {
-                    Logger.debug("onLocation(getCurrentLocation): injected!")
+                        if (FakeLoc.enableDebugLog) {
+                            Logger.debug("onLocation(getCurrentLocation): injected!")
+                        }
+
+                        args[0] = injectLocation(location)
+                    }).isNotEmpty()
+                }.getOrDefault(false)
+                if (installed) {
+                    currentLocationCallbacks.add(classCallback)
+                } else {
+                    Logger.warn("Unable to hook current-location callback")
+                    if (FakeLoc.enable) result = null
                 }
-
-                args[0] = injectLocation(location)
-            })
+            }
         })
 
         cILocationManager.hookAllMethods("sendExtraCommand", beforeHook {
             if (args.size < 3) return@beforeHook
 
-            val provider = args[0] as String
-            val command = args[1] as String
+            val provider = args[0] as? String ?: return@beforeHook
+            val command = args[1] as? String ?: run {
+                if (PortalIpc.isV2Provider(provider)) result = false
+                return@beforeHook
+            }
             val outResult = args[2] as? Bundle
 
-            if (FakeLoc.disableFusedLocation && provider == "fused") {
+            if (FakeLoc.enable && FakeLoc.disableFusedLocation && provider == "fused") {
                 result = false
                 return@beforeHook
             }
@@ -735,21 +787,36 @@ internal object LocationServiceHook: BaseLocationHook() {
                 return@beforeHook
             }
 
-            if(provider == "LOCATION_BIG_DATA") {
+            if(FakeLoc.enable && provider == "LOCATION_BIG_DATA") {
                 result = false
                 return@beforeHook
             }
 
-            // Not the provider of the portal, does not process
-            if (provider != "portal") {
+            // Not a Portal IPC provider, so do not alter the platform command.
+            if (!PortalIpc.isV2Provider(provider)) {
                 if (FakeLoc.enableDebugLog)
                     Logger.debug("sendExtraCommand provider: $provider, command: $command, result: $result")
                 return@beforeHook
             }
-            if (outResult == null) return@beforeHook
+            if (outResult == null) {
+                result = false
+                return@beforeHook
+            }
 
-            if (handleInstruction(command, outResult)) {
+            if (!BinderUtils.isLocationProviderEnabled(BinderUtils.getCallerUid(), provider)) {
+                result = false
+                return@beforeHook
+            }
+
+            if (handleInstruction(provider, command, outResult)) {
+                if (outResult.getString("command_id") == PortalIpc.FIXED_START_COMMAND &&
+                    FakeLoc.isSystemServerProcess
+                ) {
+                    FixedGpsDispatcher.primeFromSystemService(thisObject)
+                }
                 result = true
+            } else {
+                result = false
             }
         })
 
@@ -761,21 +828,24 @@ internal object LocationServiceHook: BaseLocationHook() {
                 object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam?) {
                         if (param == null || param.args.size < 2 || param.args[0] == null) return
-                        val provider = param.args[0] as String
-                        var userId = param.args[1] as Int
-                        if (provider == "portal") {
-                            if (userId == 0) {
-                                userId = BinderUtils.getCallerUid()
-                            }
-                            param.result = BinderUtils.isLocationProviderEnabled(userId)
-                        } else if(provider == "network") {
-                            param.result = !FakeLoc.enable
-                        } else if (FakeLoc.disableFusedLocation && provider == "fused") {
+                        val provider = param.args[0] as? String ?: return
+                        if (PortalIpc.isV2Provider(provider)) {
+                            // The framework argument is a user ID, not an
+                            // app UID. Authorization must always use the
+                            // actual Binder caller and cannot be confused by
+                            // a caller-supplied user value.
+                            param.result = BinderUtils.isLocationProviderEnabled(
+                                BinderUtils.getCallerUid(),
+                                provider,
+                            )
+                        } else if(provider == "network" && FakeLoc.enable) {
+                            param.result = false
+                        } else if (FakeLoc.enable && FakeLoc.disableFusedLocation && provider == "fused") {
                             param.result = false
                             return
                         } else {
                             if (FakeLoc.enableDebugLog) {
-                                 Logger.debug("isProviderEnabledForUser provider: $provider, userId: $userId")
+                                 Logger.debug("isProviderEnabledForUser provider: $provider")
                             }
                         }
                     }
@@ -788,13 +858,13 @@ internal object LocationServiceHook: BaseLocationHook() {
                 object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam?) {
                         if (param == null || param.args.isEmpty() || param.args[0] == null) return
-                        val provider = param.args[0] as String
+                        val provider = param.args[0] as? String ?: return
                         val userId = BinderUtils.getCallerUid()
-                        if (provider == "portal" && BinderUtils.isLocationProviderEnabled(userId)) {
+                        if (PortalIpc.isV2Provider(provider) && BinderUtils.isLocationProviderEnabled(userId, provider)) {
                             param.result = true
-                        } else if(provider == "network") {
-                            param.result = !FakeLoc.enable
-                        } else if (FakeLoc.disableFusedLocation && provider == "fused") {
+                        } else if(provider == "network" && FakeLoc.enable) {
+                            param.result = false
+                        } else if (FakeLoc.enable && FakeLoc.disableFusedLocation && provider == "fused") {
                             param.result = false
                             return
                         }
@@ -822,12 +892,13 @@ internal object LocationServiceHook: BaseLocationHook() {
 
     }
 
-    private fun hookILocationListener(listener: Any) {
+    private fun hookILocationListener(listener: Any): Boolean = synchronized(hookedListenerClasses) {
         val classListener = listener.javaClass
+        if (hookedListenerClasses.contains(classListener)) return@synchronized true
         if (FakeLoc.enableDebugLog)
             Logger.debug("will hook ILocationListener: ${classListener.name}")
 
-        if(XposedBridge.hookAllMethods(classListener, "onLocationChanged", object: XC_MethodHook() {
+        val hooks = runCatching { XposedBridge.hookAllMethods(classListener, "onLocationChanged", object: XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
                     if (param.args.isEmpty()) return
                     if (!FakeLoc.enable) return
@@ -843,61 +914,28 @@ internal object LocationServiceHook: BaseLocationHook() {
 
                         is List<*> -> {
                             val locations = param.args[0] as List<*>
-                            param.args[0] = locations.map { injectLocation(it as Location) }
+                            param.args[0] = locations.mapNotNull { it as? Location }.map { injectLocation(it) }
                         }
-                        else -> Logger.error("onLocationChanged args is not `Location`")
+                        else -> {
+                            Logger.error("onLocationChanged args is not `Location`")
+                            param.args[0] = null
+                        }
                     }
 
                     if (FakeLoc.enableDebugLog) {
-                        Logger.debug("${param.method}: injected! ${param.args[0]}")
+                        Logger.debug("${param.method}: injected")
                     }
                 }
-            }).isEmpty()) {
+            }) }.getOrElse {
+                Logger.error("hook onLocationChanged failed", it)
+                return@synchronized false
+            }
+        if (hooks.isEmpty()) {
             Logger.error("hook onLocationChanged failed")
-            return // If the hook fails, the listener is not added
+            return@synchronized false
         }
-    }
-
-    private fun startDaemon(classLoader: ClassLoader) {
-        //val cIRemoteCallback = XposedHelpers.findClass("android.os.IRemoteCallback", classLoader)
-        thread(
-            name = "Binder:1000_${Random.nextInt(1, 10)}",
-            isDaemon = true,
-            start = true,
-        ) {
-            while (true) {
-                kotlin.runCatching {
-                    if (!FakeLoc.enable) {
-                        Thread.sleep(3000)
-                        return@runCatching
-                    } else {
-                        Thread.sleep(FakeLoc.updateInterval)
-                    }
-
-                    if (!FakeLoc.enable) return@runCatching // Prevent the last loop from being executed
-
-                    if (FakeLoc.enableDebugLog)
-                        Logger.debug("LocationUpdater: callOnLocationChanged: ${locationListeners.size}")
-
-                    callOnLocationChanged()
-                }.onFailure {
-                    Logger.error("LocationUpdater", it)
-                }
-            }
-        }
-    }
-
-    private fun addLocationListenerInner(provider: String, listener: IInterface) {
-        val mDeathRecipient = object: IBinder.DeathRecipient {
-            override fun binderDied() {}
-            override fun binderDied(who: IBinder) {
-                who.unlinkToDeath(this, 0)
-                removeLocationListenerByBinder(who)
-            }
-        }
-        listener.asBinder().linkToDeath(mDeathRecipient, 0)
-        locationListeners.add(provider to listener)
-        hookILocationListener(listener)
+        hookedListenerClasses.add(classListener)
+        true
     }
 
     private fun removeLocationListenerInner(listener: IInterface) {
@@ -909,54 +947,8 @@ internal object LocationServiceHook: BaseLocationHook() {
     }
 
     fun callOnLocationChanged() {
-        if (FakeLoc.enableDebugLog) {
-            Logger.debug("==> callOnLocationChanged: ${locationListeners.size}")
-        }
-        locationListeners.forEach { listenerWithProvider ->
-            val listener = listenerWithProvider.second
-            var location = FakeLoc.lastLocation
-            if (location == null) {
-                location = if (listenerWithProvider.first == "GnssBatch") {
-                    Location("gps")
-                } else {
-                    Location(listenerWithProvider.first)
-                }
-            }
-            location = injectLocation(location)
-            var called = false
-            var error: Throwable? = null
-            kotlin.runCatching {
-                val locations = listOf(location)
-                val mOnLocationChanged = XposedHelpers.findMethodBestMatch(listener.javaClass, "onLocationChanged", locations, null)
-                XposedBridge.invokeOriginalMethod(mOnLocationChanged, listener, arrayOf(locations, null))
-                called = true
-            }.onFailure {
-                if (it is InvocationTargetException && it.targetException is DeadObjectException) {
-                    return@forEach
-                }
-                error = it
-            }
-
-            if (!called) runCatching {
-                val mOnLocationChanged = XposedHelpers.findMethodBestMatch(listener.javaClass, "onLocationChanged", location)
-                XposedBridge.invokeOriginalMethod(mOnLocationChanged, listener, arrayOf(location))
-                called = true
-            }.onFailure {
-                if (it is InvocationTargetException && it.targetException is DeadObjectException) {
-                    return@forEach
-                }
-                error = it
-            }
-
-            if (!called) {
-                Logger.error("callOnLocationChanged failed: " + error?.stackTraceToString())
-                Logger.error("The listener all methods: " + listener.javaClass.declaredMethods.joinToString { it.name })
-            }
-        }
-
-        if (FakeLoc.enableDebugLog) {
-            Logger.debug("==> callOnLocationChanged: end")
-        }
+        // Retained for legacy command callers. Direct Binder delivery bypasses
+        // Android's ongoing permission and AppOps checks, so it is disabled.
     }
 
     private fun hookLocationManagerServiceV2(classLoader: ClassLoader) {
@@ -1024,8 +1016,8 @@ internal object LocationServiceHook: BaseLocationHook() {
 //        }
     }
 
-    private inline fun handleInstruction(command: String, rely: Bundle): Boolean {
-        return RemoteCommandHandler.handleInstruction(command, rely)
+    private inline fun handleInstruction(provider: String, command: String, rely: Bundle): Boolean {
+        return RemoteCommandHandler.handleInstruction(provider, command, rely)
     }
 }
 

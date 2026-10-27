@@ -15,3 +15,6 @@
 local.properties
 apk-keys
 app/google-services.json
+/.kotlin/
+/artifacts/
+/tools/location-probe-app/build/

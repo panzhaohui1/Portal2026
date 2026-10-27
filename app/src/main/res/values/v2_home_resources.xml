@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="v2_status_warning">#F57C00</color>
+    <color name="v2_launcher_background">#006E69</color>
+    <dimen name="v2_status_stroke">1dp</dimen>
+    <dimen name="v2_status_stroke_emphasis">2dp</dimen>
+</resources>

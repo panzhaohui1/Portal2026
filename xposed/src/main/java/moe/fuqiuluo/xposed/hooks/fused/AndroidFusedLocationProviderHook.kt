@@ -25,7 +25,7 @@ object AndroidFusedLocationProviderHook: BaseLocationHook() {
             if (result == null) return@hookMethodAfter
 
             if (FakeLoc.enable) {
-                result = injectLocation(result as Location)
+                result = (result as? Location)?.let { injectLocation(it) }
             }
         }
 

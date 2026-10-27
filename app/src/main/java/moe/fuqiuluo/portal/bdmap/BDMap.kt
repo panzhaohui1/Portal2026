@@ -1,6 +1,5 @@
 package moe.fuqiuluo.portal.bdmap
 
-import android.util.Log
 import com.baidu.mapapi.map.BaiduMap
 import com.baidu.mapapi.map.BitmapDescriptorFactory
 import com.baidu.mapapi.map.MyLocationConfiguration
@@ -16,7 +15,6 @@ fun SuggestionResult.toPoi(
     val gcj02Lon = it.pt.longitude
     val (lat, lon) = Loc4j.gcj2wgs(gcj02Lat, gcj02Lon)
     if (currentLocation != null) {
-        Log.d("toPoi", "currentLocation: $currentLocation, lat: $lat, lon: $lon")
         Poi(
             name = it.key,
             address = it.city + " " + it.district,

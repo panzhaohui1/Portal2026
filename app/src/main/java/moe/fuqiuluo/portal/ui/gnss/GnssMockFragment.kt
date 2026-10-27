@@ -19,8 +19,6 @@ import android.widget.Toast
 import android.os.Build
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
-import com.tencent.bugly.crashreport.CrashReport
-import com.tencent.bugly.proguard.bi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -284,7 +282,7 @@ class GnssMockFragment : Fragment() {
                 locationManager.registerGnssStatusCallback(gnssStatusCallback!!, null)
             }
         } catch (e: SecurityException) {
-            CrashReport.postCatchedException(e)
+            Log.w("GnssMockFragment", "GNSS status permission was denied")
         }
     }
 
